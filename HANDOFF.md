@@ -37,7 +37,7 @@ You are taking over a **research project**, not a trading-bot build. Read this f
 | audit | Daily data quality: completeness ≥ 98%, live-vs-history agreement, gap-vs-price-move bias test. Seals days (gzip + SHA-256) | `src/dresearch/audit.py` |
 | analysis | Phase 0 tests against a simulated no-pattern null; break-even costs | `src/dresearch/analysis.py` (its docstring **is the protocol**) |
 | dashboard | Read-only status page behind a secret URL | `src/dresearch/dashboard.py` |
-| MT5 snapshot | Windows-only, read-only: spreads, swaps, specs, server clock offset | `windows/mt5_snapshot.py`, guide `docs/SETUP_WINDOWS.md` |
+| MT5 snapshot | **Done** 29 Oct, 20:42 UTC, demo account on server Deriv-Demo, all 11 instruments found and imported. Median round-trip spread: V10 0.0038%, V10(1s) 0.0040%, V25 0.0113%, V25(1s) 0.0076%, V50 0.0262%, V50(1s) 0.0251%, V75 0.0336%, V75(1s) 0.0350%, V100 0.0531%, V100(1s) 0.0350%, gold 0.0037%. That is roughly 0.0004% per point of volatility. Commission is still unknown |
 | tests | 22 pytest tests against a fake Deriv server and a fake MT5 | `tests/` |
 
 The client refuses trading calls in code (`FORBIDDEN_CALLS` in `client.py`), and a test proves it. The MT5 script imports no order functions.
@@ -149,7 +149,7 @@ Planted patterns (tick memory, slow trend, drift) are detected. Full size, 7.8 M
 ## 8. What to do next, in order
 
 1. **When the backfill shows 100%:** `systemctl start dresearch-analyze`. About an hour later, results appear on the dashboard under **Pattern tests** and in `/var/lib/dresearch/reports/analysis_discovery_*.json`. Read them yourself before summarising for Pedro.
-2. **MT5 snapshot:** walk Pedro through `docs/SETUP_WINDOWS.md`: install Python 3.12, install MT5, log in to the Deriv demo, run `mt5_snapshot.py`, `scp` the file to the VPS, then `dresearch import-mt5 /tmp/mt5_snapshot.json`. The dashboard then shows **no edge / open** per index and horizon.
+2. **MT5 snapshot: done.** Repeat it only if Deriv changes its spreads. Pedro's PC runs Python 3.14.5 with MetaTrader5 5.0.6231, which has a cp314 wheel. The script is in `C:\Users\user\deriv-research`. Once the analysis has run, the dashboard shows **no edge / open** per index and horizon.
 3. **Interpret honestly:**
    - **No deviations, and the spread above break-even at every horizon:** the discovery verdict is NO EDGE. Say so plainly and recommend stopping Track A. Do not build a bot.
    - **A deviation:** first suspect an artefact (rounding, feed construction, gaps). Check the audit's missingness test, compare MT5 with the API, and replicate only on the holdout after 26 Nov. Never trade on a discovery-only result.
