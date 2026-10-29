@@ -91,6 +91,32 @@ def cmd_analyze(args) -> int:
     return 0
 
 
+def cmd_import_mt5(args) -> int:
+    import json
+    from .storage import save_json
+    src = Path(args.file)
+    try:
+        rep = json.loads(src.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"Could not read {src}: {exc}")
+        return 2
+    if not isinstance(rep, dict) or "symbols" not in rep or "account" not in rep:
+        print("That file is not an mt5_snapshot JSON.")
+        return 2
+    stamp = str(rep.get("created_utc", ""))[:19].replace(":", "").replace("-", "")
+    dest = Path(args.data) / "reports" / f"mt5_snapshot_{stamp or 'unknown'}.json"
+    save_json(dest, rep)
+    print(f"Imported {len(rep['symbols'])} instruments from a {rep['account'].get('mode')} account "
+          f"({rep['account'].get('server')}) -> {dest}")
+    for code, r in sorted(rep["symbols"].items()):
+        h = r.get("history_24h") or {}
+        pct = h.get("median_pct_of_price")
+        print(f"  {code:10} median spread {h.get('median_points', '-')} pts"
+              + (f" = {pct:.4f}% of price" if pct is not None else ""))
+    print("The status page now compares these spreads with the break-even costs.")
+    return 0
+
+
 def cmd_audit(args) -> int:
     from .audit import run_audit, summarise
     report = run_audit(Path(args.data), args.day, seal=not args.no_seal)
@@ -177,6 +203,8 @@ def main(argv=None) -> int:
     b = sub.add_parser("backfill", help="download past ticks (resumable; newest first)")
     b.add_argument("--days", type=int, default=90)
     b.add_argument("--per-minute", type=int, default=120, help="request rate cap (Deriv limit is 220)")
+    im = sub.add_parser("import-mt5", help="load an mt5_snapshot JSON made on your Windows PC")
+    im.add_argument("file")
     sub.add_parser("freeze", help="fix the analysis protocol and start the holdout clock (once)")
     z = sub.add_parser("analyze", help="run the Phase 0 pattern tests (normally via dresearch-analyze)")
     z.add_argument("--days", type=int, default=90)
@@ -191,4 +219,4 @@ def main(argv=None) -> int:
     return {"probe": cmd_probe, "collect": cmd_collect, "audit": cmd_audit,
             "backfill": cmd_backfill, "status": cmd_status,
             "dashboard-serve": cmd_dashboard_serve, "dashboard-url": cmd_dashboard_url,
-            "freeze": cmd_freeze, "analyze": cmd_analyze}[args.cmd](args)
+            "freeze": cmd_freeze, "analyze": cmd_analyze, "import-mt5": cmd_import_mt5}[args.cmd](args)

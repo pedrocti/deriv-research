@@ -135,6 +135,7 @@ def gather(data: Path, now: float | None = None) -> dict:
         "analysis_progress": load_json(data / "reports" / "analysis_progress.json", None),
         "analyze_service": service_state("dresearch-analyze"),
         "freeze": load_json(data / "config" / "freeze.json", None),
+        "mt5": latest(data, "mt5_snapshot_*.json"),
         "events": recent_events(data),
         "bytes": used, "disk_free": shutil.disk_usage(data).free if data.exists() else 0,
     }
@@ -390,16 +391,29 @@ def analysis_html(g: dict) -> str:
         return (head + f'<p class="muted">{frozen}The tests run once the history download is finished. '
                 'Each index is compared with 100 simulated price series that have no pattern at all, '
                 'rounded the same way as Deriv\'s prices.</p></section>')
+    mt5 = (g.get("mt5") or {}).get("symbols", {})
     rows = []
     for sym, r in a.get("symbols", {}).items():
         st = str(r.get("status", ""))
         cls = "good" if st.startswith("CONSISTENT") else "warn" if st.startswith("DEVIATION") else "idle"
         vr = (r.get("H2_vol") or {}).get("ratio")
-        cost = " ".join(f'<td class="num">{e["no_edge_if_round_trip_cost_above_pct"]:.4f}%</td>'
-                        for e in r.get("economics", [])) or '<td colspan="4" class="muted">–</td>'
+        spread = ((mt5.get(sym) or {}).get("history_24h") or {}).get("median_pct_of_price")
+        cells = []
+        for e in r.get("economics", []):
+            be = e["no_edge_if_round_trip_cost_above_pct"]
+            if spread is None:
+                cells.append(f'<td class="num">{be:.4f}%</td>')
+            elif spread > be:
+                cells.append(f'<td class="num" title="spread {spread:.4f}% is above break-even {be:.4f}%">'
+                             f'<span class="dot s-good"></span> no edge</td>')
+            else:
+                cells.append(f'<td class="num" title="spread {spread:.4f}% is below break-even {be:.4f}%">'
+                             f'<span class="dot s-warn"></span> open</td>')
+        cost = "".join(cells) or '<td colspan="4" class="muted">–</td>'
+        sp_cell = f'<td class="num">{spread:.4f}%</td>' if spread is not None else '<td class="num muted">–</td>'
         rows.append(f'<tr><td><span class="dot s-{cls}"></span>&nbsp; {esc(FRIENDLY.get(sym, sym))}</td>'
                     f'<td>{esc(st.split(" (")[0].capitalize())}</td>'
-                    f'<td class="num">{(f"{vr:.3f}" if vr else "–")}</td>{cost}</tr>')
+                    f'<td class="num">{(f"{vr:.3f}" if vr else "–")}</td>{sp_cell}{cost}</tr>')
     devs = [f"{FRIENDLY.get(s, s)}: {d}" for s, r in a.get("symbols", {}).items() for d in r.get("deviations", [])]
     dev_html = ("<p><b>Deviations to investigate:</b> " + esc("; ".join(devs)) +
                 ". A deviation is not an edge until it survives the cost check and the holdout.</p>") if devs else \
@@ -408,12 +422,17 @@ def analysis_html(g: dict) -> str:
             f'{esc(a["window_utc"][1][:10])}, finished {esc(str(a.get("finished_utc", ""))[:16].replace("T", " "))} UTC.</p>'
             + dev_html +
             '<div class="tbl"><table><thead><tr><th>Index</th><th>Result</th><th>Vol / label</th>'
-            '<th>1 min</th><th>5 min</th><th>15 min</th><th>60 min</th></tr></thead>'
+            '<th>MT5 spread</th><th>1 min</th><th>5 min</th><th>15 min</th><th>60 min</th></tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>'
-            '<p class="muted">The four right-hand columns are break-even costs. If your total cost per round trip '
-            '(spread plus commission, as a percentage of price) is above the number, trading the simplest '
-            'momentum or reversal rule at that holding time loses money, with 95% confidence. '
-            'We compare these with your real MT5 spread next.</p></section>')
+            + ('<p class="muted">Holding-time columns compare your real MT5 spread (median over 24 h) with the '
+               'break-even cost for the simplest momentum or reversal rule. <b>No edge</b>: the spread alone is '
+               'larger than anything the price pattern could pay, with 95% confidence. <b>Open</b>: the data '
+               'cannot rule it out yet. Commission is not included; it only adds cost, so a "no edge" never '
+               'turns into an edge when it is added.</p></section>' if mt5 else
+               '<p class="muted">The four right-hand columns are break-even costs. If your total cost per round trip '
+               '(spread plus commission, as a percentage of price) is above the number, trading the simplest '
+               'momentum or reversal rule at that holding time loses money, with 95% confidence. '
+               'Import your MT5 snapshot to compare them with your real spread.</p></section>'))
 
 
 # ---------------------------------------------------------------- serving
