@@ -113,8 +113,8 @@ def run(mt5, minutes: float, out_dir: str = ".") -> dict:
             else:
                 rec["history_24h"] = {"n": 0, "error": str(mt5.last_error())}
             report["symbols"][code] = rec
-            print(f"  {code:10} {name:28} 24h spread median "
-                  f"{rec['history_24h'].get('median_points', '-')} pts")
+            med = rec["history_24h"].get("median_points")
+            print(f"  {code:10} {name:28} 24h spread median {(f'{med:.6g}' if med is not None else '-')} pts")
         if offsets:
             off = statistics.median(offsets)
             report["server_clock_offset_s"] = off
@@ -147,7 +147,8 @@ def run(mt5, minutes: float, out_dir: str = ".") -> dict:
             h = rec.get("history_24h", {})
             pct = h.get("median_pct_of_price")
             pct_txt = f"{pct:.4f}%" if pct is not None else "-"
-            print(f"{code:10} {str(h.get('median_points', '-')):>14} {pct_txt:>11}")
+            med = h.get("median_points")
+            print(f"{code:10} {(f'{med:.6g}' if med is not None else '-'):>14} {pct_txt:>11}")
         report["_path"] = path
         return report
     finally:
