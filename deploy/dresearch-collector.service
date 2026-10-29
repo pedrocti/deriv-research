@@ -1,0 +1,24 @@
+[Unit]
+Description=Deriv research tick collector (read-only, places no trades)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=dresearch
+Group=dresearch
+Environment=DRESEARCH_DATA=/var/lib/dresearch
+ExecStart=/opt/dresearch/venv/bin/dresearch collect
+Restart=always
+RestartSec=10
+# Keep it a polite neighbour to the websites on this server
+MemoryMax=512M
+CPUQuota=50%
+Nice=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/dresearch
+
+[Install]
+WantedBy=multi-user.target

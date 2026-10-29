@@ -1,0 +1,16 @@
+[Unit]
+Description=Deriv research daily data audit (yesterday, UTC)
+
+[Service]
+Type=oneshot
+User=dresearch
+Group=dresearch
+Environment=DRESEARCH_DATA=/var/lib/dresearch
+ExecStart=/opt/dresearch/venv/bin/dresearch audit
+SuccessExitStatus=0 1
+MemoryMax=1G
+Nice=15
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/dresearch

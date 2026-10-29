@@ -1,0 +1,9 @@
+[Unit]
+Description=Run the Deriv research audit daily at 00:20 UTC
+
+[Timer]
+OnCalendar=*-*-* 00:20:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

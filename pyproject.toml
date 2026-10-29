@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dresearch"
+version = "0.2.0"
+description = "Read-only research data tools for Deriv Volatility Indices"
+requires-python = ">=3.10"
+dependencies = ["websockets==15.0.1", "numpy==2.5.3", "scipy==1.18.1"]
+
+[project.optional-dependencies]
+dev = ["pytest==9.2.0"]
+
+[project.scripts]
+dresearch = "dresearch.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
