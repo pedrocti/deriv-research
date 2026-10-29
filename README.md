@@ -8,6 +8,7 @@ Read-only data tools for testing whether Deriv Volatility Indices have any trada
 - **`dresearch probe`** measures what Deriv's public API actually provides: the endpoint, symbol codes, tick schedule, price rounding, page size, how far back history goes, and whether gold is served. It writes the collector config.
 - **`dresearch collect`** records every tick 24/7 as a systemd service. It reconnects by itself. It re-downloads every closed hour, which repairs gaps and gives an independent check of the live feed.
 - **`dresearch audit`** is the daily data-quality report: completeness, gaps, live-vs-history agreement, and whether gaps are linked to price moves. It also compresses and hashes finished days.
+- **`dresearch backfill --days N`** downloads past ticks: newest first, resumable, throttled. It normally runs as the `dresearch-backfill` service.
 - **`dresearch status`** tells you whether it is running and whether data is arriving.
 
 ## Install on the VPS (Ubuntu, as root)
@@ -18,6 +19,8 @@ dresearch probe
 systemctl enable --now dresearch-collector dresearch-audit.timer
 dresearch status
 ```
+
+**Download history (runs in the background, about 9 h for 90 days):** `systemctl start dresearch-backfill`
 
 **Update to a new version:** run the same `curl ... | bash` line again. It restarts the collector itself.
 

@@ -21,6 +21,9 @@ from .client import DEFAULT_ENDPOINTS, DerivError, connect_any
 from .storage import save_json
 
 VOL_RE = re.compile(r"^(R_(\d+)|1HZ(\d+)V)$")
+# Spot gold only: frxXAUUSD and similar. Not baskets (WLDXAU) and not "frXAUdcad"-style
+# accidental substring matches of forex pairs, which revision 0.2.0 got wrong.
+GOLD_RE = re.compile(r"^frxXAU[A-Z]{3}$")
 CORE = ["R_10", "R_25", "R_50", "R_75", "R_100",
         "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V"]
 DEPTH_DAYS = [1, 7, 30, 90, 180, 365, 730, 1095, 1825]
@@ -50,7 +53,7 @@ def classify_symbols(entries: list[dict]) -> dict:
             continue
         if VOL_RE.match(sym):
             vols.append({"symbol": sym, "display_name": name})
-        elif "XAU" in sym.upper() or "gold" in name.lower():
+        elif GOLD_RE.match(sym):
             gold.append({"symbol": sym, "display_name": name,
                          "open": symbol_field(e, "exchange_is_open", "is_open")})
         else:
@@ -170,7 +173,8 @@ async def run_probe(data_dir: Path, urls: list[str] | None = None, verbose=print
 
     # --- config for the collector, derived from measurements, never typed by hand
     core = [s for s in CORE if s in report.get("tick_stats", {}) and "interval_median_s" in report["tick_stats"][s]]
-    gold = [g["symbol"] for g in report.get("symbols", {}).get("gold", [])][:1]
+    golds = [g["symbol"] for g in report.get("symbols", {}).get("gold", [])]
+    gold = ["frxXAUUSD"] if "frxXAUUSD" in golds else golds[:1]
     cfg = {
         "endpoint": report["endpoint"],
         "collect": core + gold,

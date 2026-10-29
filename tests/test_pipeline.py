@@ -82,6 +82,7 @@ def test_probe_measures_and_writes_config(tmp_path):
     st = rep["tick_stats"]["1HZ75V"]
     assert st["pip_size_decimals"] == 2 and st["interval_share_at_median"] == 1.0
     assert "frxEURUSD" not in cfg["collect"]
+    assert [g["symbol"] for g in rep["symbols"]["gold"]] == ["frxXAUUSD"]   # not frxAUDCAD, not WLDXAU
     assert "PROBE SUMMARY" in probe.summarise(rep)
 
 
@@ -173,3 +174,35 @@ def test_seal_compresses_and_hashes(tmp_path):
     assert len(gz) == 1 and [r["epoch"] for r in read_rows(gz[0])] == [str(T_DAY), str(T_DAY + 2)]
     assert "sha256" in (tmp_path / "raw" / "MANIFEST.jsonl").read_text()
     assert seal_closed_days(tmp_path, "2026-10-01") == 0     # today's files are never sealed
+
+
+def test_backfill_newest_first_resumable_and_depth_limited(tmp_path):
+    """History exists only for the last 30 hours; ask for 2 days. Then re-run: nothing re-downloaded."""
+    from dresearch.backfill import run_backfill, plan_hours
+    from dresearch.storage import save_json
+    now = T_DAY + 3 * 86400 + 1800
+
+    async def go(fake):
+        url = await fake.start()
+        save_json(tmp_path / "config" / "symbols.json",
+                  {"endpoint": url, "collect": ["R_75", "1HZ75V"], "watchdog": ["R_75", "1HZ75V"],
+                   "intervals_s": {"R_75": 2, "1HZ75V": 1}, "history_page_size": 1000})
+        st = await run_backfill(tmp_path, days=2, per_minute=6000, clock=lambda: now, verbose=lambda *a: None)
+        await fake.stop()
+        return st
+
+    fake = FakeDeriv(now=now, history_floor=now - 30 * 3600, page_cap=1000)
+    st = run(go(fake))
+    hours = plan_hours(now, 2)
+    assert hours == sorted(hours, reverse=True) and len(hours) == 48
+    assert st["finished"] and st["errors"] == 0
+    # hours fully after the floor are written; earlier ones are reported as unavailable, not faked
+    assert st["hours_written"] >= 2 * 27 and st["hours_empty"] >= 2 * 18
+    assert hour_sealed(tmp_path, "1HZ75V", hours[0]) and not hour_sealed(tmp_path, "1HZ75V", hours[-1])
+    n_requests = len(fake.requests)
+
+    fake2 = FakeDeriv(now=now, history_floor=now - 30 * 3600, page_cap=1000)
+    st2 = run(go(fake2))
+    assert st2["hours_written"] == 0, "already-downloaded hours must not be fetched again"
+    hist_calls = sum(1 for r in fake2.requests if "ticks_history" in r)
+    assert hist_calls <= 2 * 21, f"only the unavailable hours are retried, got {hist_calls}"

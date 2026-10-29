@@ -33,7 +33,7 @@ echo "[3/6] python environment (pinned versions)"
 
 echo "[4/6] systemd units"
 install -m 644 "$APP/src/deploy/dresearch-collector.service" "$APP/src/deploy/dresearch-audit.service" \
-  "$APP/src/deploy/dresearch-audit.timer" /etc/systemd/system/
+  "$APP/src/deploy/dresearch-audit.timer" "$APP/src/deploy/dresearch-backfill.service" /etc/systemd/system/
 systemctl daemon-reload
 
 echo "[5/6] 'dresearch' command"

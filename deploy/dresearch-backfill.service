@@ -1,0 +1,22 @@
+[Unit]
+Description=Deriv research history download (read-only; resumable)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dresearch
+Group=dresearch
+Environment=DRESEARCH_DATA=/var/lib/dresearch
+Environment=BACKFILL_DAYS=90
+ExecStart=/opt/dresearch/venv/bin/dresearch backfill --days ${BACKFILL_DAYS} --per-minute 120
+Restart=on-failure
+RestartSec=60
+MemoryMax=512M
+CPUQuota=50%
+Nice=15
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/dresearch

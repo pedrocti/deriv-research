@@ -18,6 +18,8 @@ SYMBOLS = {
     "1HZ75V": {"interval": 1, "pip": 2, "base": 5000.0, "name": "Volatility 75 (1s) Index"},
     "frxXAUUSD": {"interval": 1, "pip": 2, "base": 2400.0, "name": "Gold/USD"},
     "frxEURUSD": {"interval": 1, "pip": 5, "base": 1.08, "name": "EUR/USD"},
+    "frxAUDCAD": {"interval": 1, "pip": 5, "base": 0.98, "name": "AUD/CAD"},      # contains "XAU" by accident
+    "WLDXAU": {"interval": 1, "pip": 3, "base": 926933.0, "name": "Gold Basket"},  # a basket, not spot gold
 }
 
 
