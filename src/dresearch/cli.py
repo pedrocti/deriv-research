@@ -38,6 +38,23 @@ def cmd_backfill(args) -> int:
     return 0 if state["finished"] else 1
 
 
+def cmd_dashboard_serve(args) -> int:
+    from .dashboard import make_server
+    srv = make_server(Path(args.data), port=args.port)
+    logging.getLogger("dresearch").info("dashboard listening on port %s", args.port)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+def cmd_dashboard_url(args) -> int:
+    from .dashboard import dashboard_url
+    print(dashboard_url(Path(args.data), args.port))
+    return 0
+
+
 def cmd_audit(args) -> int:
     from .audit import run_audit, summarise
     report = run_audit(Path(args.data), args.day, seal=not args.no_seal)
@@ -125,7 +142,11 @@ def main(argv=None) -> int:
     b.add_argument("--days", type=int, default=90)
     b.add_argument("--per-minute", type=int, default=120, help="request rate cap (Deriv limit is 220)")
     sub.add_parser("status", help="is it running, and is data arriving?")
+    for name in ("dashboard-serve", "dashboard-url"):
+        d = sub.add_parser(name, help="serve the status page" if name.endswith("serve") else "print the private page link")
+        d.add_argument("--port", type=int, default=int(os.environ.get("DASHBOARD_PORT", "8787")))
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     return {"probe": cmd_probe, "collect": cmd_collect, "audit": cmd_audit,
-            "backfill": cmd_backfill, "status": cmd_status}[args.cmd](args)
+            "backfill": cmd_backfill, "status": cmd_status,
+            "dashboard-serve": cmd_dashboard_serve, "dashboard-url": cmd_dashboard_url}[args.cmd](args)

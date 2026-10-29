@@ -22,6 +22,8 @@ dresearch status
 
 **Download history (runs in the background, about 9 h for 90 days):** `systemctl start dresearch-backfill`
 
+**Status page in your browser:** `systemctl enable --now dresearch-dashboard`, then `dresearch dashboard-url` prints your private link (port 8787).
+
 **Update to a new version:** run the same `curl ... | bash` line again. It restarts the collector itself.
 
 **Stop collecting:** `systemctl disable --now dresearch-collector dresearch-audit.timer`

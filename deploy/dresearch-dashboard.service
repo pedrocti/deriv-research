@@ -1,0 +1,23 @@
+[Unit]
+Description=Deriv research status page (read-only, secret link)
+After=network-online.target
+
+[Service]
+User=dresearch
+Group=dresearch
+Environment=DRESEARCH_DATA=/var/lib/dresearch
+Environment=DASHBOARD_PORT=8787
+ExecStart=/opt/dresearch/venv/bin/dresearch dashboard-serve --port ${DASHBOARD_PORT}
+Restart=always
+RestartSec=10
+MemoryMax=256M
+CPUQuota=25%
+Nice=10
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/dresearch
+
+[Install]
+WantedBy=multi-user.target

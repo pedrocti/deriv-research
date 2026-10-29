@@ -33,7 +33,7 @@ echo "[3/6] python environment (pinned versions)"
 
 echo "[4/6] systemd units"
 install -m 644 "$APP/src/deploy/dresearch-collector.service" "$APP/src/deploy/dresearch-audit.service" \
-  "$APP/src/deploy/dresearch-audit.timer" "$APP/src/deploy/dresearch-backfill.service" /etc/systemd/system/
+  "$APP/src/deploy/dresearch-audit.timer" "$APP/src/deploy/dresearch-backfill.service" "$APP/src/deploy/dresearch-dashboard.service" /etc/systemd/system/
 systemctl daemon-reload
 
 echo "[5/6] 'dresearch' command"
@@ -44,5 +44,5 @@ WRAP
 chmod 755 /usr/local/bin/dresearch
 
 echo "[6/6] restart collector if it was running"
-systemctl try-restart dresearch-collector.service || true
+systemctl try-restart dresearch-collector.service dresearch-dashboard.service || true
 echo "INSTALL OK"
