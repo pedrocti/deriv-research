@@ -131,6 +131,10 @@ def gather(data: Path, now: float | None = None) -> dict:
         "backfill_service": service_state("dresearch-backfill"),
         "backfill": load_json(data / "reports" / "backfill_progress.json", None),
         "audit": latest(data, "audit_*.json"),
+        "analysis": latest(data, "analysis_*.json"),
+        "analysis_progress": load_json(data / "reports" / "analysis_progress.json", None),
+        "analyze_service": service_state("dresearch-analyze"),
+        "freeze": load_json(data / "config" / "freeze.json", None),
         "events": recent_events(data),
         "bytes": used, "disk_free": shutil.disk_usage(data).free if data.exists() else 0,
     }
@@ -308,7 +312,7 @@ def render(g: dict) -> str:
                  f'<span>{esc(e.replace("_", " "))}{(" · " + esc(d)) if d else ""}</span></li>'
                  for t, e, d in g["events"]) or '<li class="muted">No events yet.</li>'
 
-    step_now = 1 if not bf.get("finished") else 2
+    step_now = 4 if g.get("analysis") else 3 if bf.get("finished") else 1
     steps = [("Collect prices", "Live recording plus a download of past prices."),
              ("Check the data", "Is anything missing, duplicated or distorted? Graded daily."),
              ("Look for patterns", "Compare the prices with simulated prices that have no pattern at all."),
@@ -349,6 +353,8 @@ def render(g: dict) -> str:
 
 <section class="panel" aria-label="Data quality"><h2>Data quality</h2>{audit_html}</section>
 
+{analysis_html(g)}
+
 <div class="two">
 <section class="panel" aria-label="First measurements"><h2>First measurements (1,000-tick sample)</h2>
 <div class="tbl"><table><thead><tr><th>Index</th><th>Label</th><th>Measured</th><th>Rounding</th><th></th></tr></thead>
@@ -368,6 +374,46 @@ def render(g: dict) -> str:
 
 <footer>Read-only page served from your VPS. It shows files on disk and cannot change anything. Keep the link private.</footer>
 </main></body></html>"""
+
+
+def analysis_html(g: dict) -> str:
+    a, prog, svc, fz = g.get("analysis"), g.get("analysis_progress"), g.get("analyze_service"), g.get("freeze")
+    head = '<section class="panel" aria-label="Pattern tests"><h2>Pattern tests</h2>'
+    if svc in ("active", "activating") and prog:
+        pct = (prog["symbol_index"] - 1 + prog["sims_done"] / max(1, prog["sims"])) / max(1, prog["symbols"])
+        return (head + f'<p>Running now: {esc(FRIENDLY.get(prog["symbol"], prog["symbol"]))} '
+                f'({prog["symbol_index"]} of {prog["symbols"]}), simulation {prog["sims_done"]} of {prog["sims"]}.</p>'
+                f'<div class="bar"><i style="width:{pct * 100:.1f}%"></i></div></section>')
+    if not a:
+        frozen = (f'The protocol was frozen on {esc(fz["T0_utc"][:16].replace("T", " "))} UTC. '
+                  if fz else "The protocol is not frozen yet. ")
+        return (head + f'<p class="muted">{frozen}The tests run once the history download is finished. '
+                'Each index is compared with 100 simulated price series that have no pattern at all, '
+                'rounded the same way as Deriv\'s prices.</p></section>')
+    rows = []
+    for sym, r in a.get("symbols", {}).items():
+        st = str(r.get("status", ""))
+        cls = "good" if st.startswith("CONSISTENT") else "warn" if st.startswith("DEVIATION") else "idle"
+        vr = (r.get("H2_vol") or {}).get("ratio")
+        cost = " ".join(f'<td class="num">{e["no_edge_if_round_trip_cost_above_pct"]:.4f}%</td>'
+                        for e in r.get("economics", [])) or '<td colspan="4" class="muted">–</td>'
+        rows.append(f'<tr><td><span class="dot s-{cls}"></span>&nbsp; {esc(FRIENDLY.get(sym, sym))}</td>'
+                    f'<td>{esc(st.split(" (")[0].capitalize())}</td>'
+                    f'<td class="num">{(f"{vr:.3f}" if vr else "–")}</td>{cost}</tr>')
+    devs = [f"{FRIENDLY.get(s, s)}: {d}" for s, r in a.get("symbols", {}).items() for d in r.get("deviations", [])]
+    dev_html = ("<p><b>Deviations to investigate:</b> " + esc("; ".join(devs)) +
+                ". A deviation is not an edge until it survives the cost check and the holdout.</p>") if devs else \
+        "<p>No index deviates from a fair random process on any of the 8 tests (Holm-corrected, 1% level).</p>"
+    return (head + f'<p class="muted">{esc(a.get("mode"))} run on {esc(a["window_utc"][0][:10])} to '
+            f'{esc(a["window_utc"][1][:10])}, finished {esc(str(a.get("finished_utc", ""))[:16].replace("T", " "))} UTC.</p>'
+            + dev_html +
+            '<div class="tbl"><table><thead><tr><th>Index</th><th>Result</th><th>Vol / label</th>'
+            '<th>1 min</th><th>5 min</th><th>15 min</th><th>60 min</th></tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table></div>'
+            '<p class="muted">The four right-hand columns are break-even costs. If your total cost per round trip '
+            '(spread plus commission, as a percentage of price) is above the number, trading the simplest '
+            'momentum or reversal rule at that holding time loses money, with 95% confidence. '
+            'We compare these with your real MT5 spread next.</p></section>')
 
 
 # ---------------------------------------------------------------- serving

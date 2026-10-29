@@ -24,6 +24,10 @@ dresearch status
 
 **Status page in your browser:** `systemctl enable --now dresearch-dashboard`, then `dresearch dashboard-url` prints your private link (port 8787).
 
+**Pattern tests (Phase 0):** run `dresearch freeze` once, before any analysis, to fix the protocol and start the holdout clock. Then, after the history download finishes, run `systemctl start dresearch-analyze` (about 1 hour). Results appear on the status page. The protocol is the docstring at the top of `src/dresearch/analysis.py`.
+
+Measured false-alarm rate on fair random walks, 200,000 ticks, 40 simulations, Holm 1% per index: 2/120 unrounded, 2/120 at Deriv-level rounding (0.07), 4/120 at heavy rounding (0.5).
+
 **Update to a new version:** run the same `curl ... | bash` line again. It restarts the collector itself.
 
 **Stop collecting:** `systemctl disable --now dresearch-collector dresearch-audit.timer`

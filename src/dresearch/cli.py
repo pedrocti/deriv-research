@@ -55,6 +55,42 @@ def cmd_dashboard_url(args) -> int:
     return 0
 
 
+def _code_commit(src: str = os.environ.get("DRESEARCH_SRC", "/opt/dresearch/src")) -> str | None:
+    """Read the installed git commit without running git (the service user can't)."""
+    try:
+        g = Path(src) / ".git"
+        head = (g / "HEAD").read_text().strip()
+        if not head.startswith("ref:"):
+            return head
+        ref = head.split(" ", 1)[1]
+        if (g / ref).exists():
+            return (g / ref).read_text().strip()
+        for line in (g / "packed-refs").read_text().splitlines():
+            if line.endswith(" " + ref):
+                return line.split(" ", 1)[0]
+    except OSError:
+        return None
+    return None
+
+
+def cmd_freeze(args) -> int:
+    from .analysis import freeze
+    data = Path(args.data)
+    existed = (data / "config" / "freeze.json").exists()
+    rec = freeze(data, _code_commit())
+    print(("Already frozen" if existed else "Protocol frozen") + f" at {rec['T0_utc']} (code {str(rec.get('code_commit'))[:7]}).")
+    print("Data before this moment is DISCOVERY data. Data after it is the HOLDOUT, usable once,")
+    print(f"no earlier than 28 days from the freeze.")
+    return 0
+
+
+def cmd_analyze(args) -> int:
+    from .analysis import run_analysis, summarise
+    report = run_analysis(Path(args.data), days=args.days, sims=args.sims, holdout=args.holdout)
+    print(summarise(report))
+    return 0
+
+
 def cmd_audit(args) -> int:
     from .audit import run_audit, summarise
     report = run_audit(Path(args.data), args.day, seal=not args.no_seal)
@@ -141,6 +177,11 @@ def main(argv=None) -> int:
     b = sub.add_parser("backfill", help="download past ticks (resumable; newest first)")
     b.add_argument("--days", type=int, default=90)
     b.add_argument("--per-minute", type=int, default=120, help="request rate cap (Deriv limit is 220)")
+    sub.add_parser("freeze", help="fix the analysis protocol and start the holdout clock (once)")
+    z = sub.add_parser("analyze", help="run the Phase 0 pattern tests (normally via dresearch-analyze)")
+    z.add_argument("--days", type=int, default=90)
+    z.add_argument("--sims", type=int, default=100)
+    z.add_argument("--holdout", action="store_true", help="the one-time test on data after the freeze")
     sub.add_parser("status", help="is it running, and is data arriving?")
     for name in ("dashboard-serve", "dashboard-url"):
         d = sub.add_parser(name, help="serve the status page" if name.endswith("serve") else "print the private page link")
@@ -149,4 +190,5 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     return {"probe": cmd_probe, "collect": cmd_collect, "audit": cmd_audit,
             "backfill": cmd_backfill, "status": cmd_status,
-            "dashboard-serve": cmd_dashboard_serve, "dashboard-url": cmd_dashboard_url}[args.cmd](args)
+            "dashboard-serve": cmd_dashboard_serve, "dashboard-url": cmd_dashboard_url,
+            "freeze": cmd_freeze, "analyze": cmd_analyze}[args.cmd](args)

@@ -66,3 +66,22 @@ def test_server_only_answers_secret_path(tmp_path):
     finally:
         srv.shutdown()
     assert len(token) >= 20
+
+
+def test_render_shows_analysis_results(tmp_path):
+    now = time.time()
+    _seed(tmp_path, now)
+    econ = [{"horizon_min": h, "no_edge_if_round_trip_cost_above_pct": c}
+            for h, c in ((1, 0.001), (5, 0.0044), (15, 0.0076), (60, 0.0308))]
+    save_json(tmp_path / "reports" / "analysis_discovery_20261030T000000Z.json",
+              {"mode": "DISCOVERY", "window_utc": ["2026-07-31T00:00:00+00:00", "2026-10-29T18:00:00+00:00"],
+               "finished_utc": "2026-10-30T01:00:00+00:00",
+               "symbols": {"R_75": {"status": "CONSISTENT WITH A FAIR RANDOM PROCESS", "deviations": [],
+                                    "H2_vol": {"ratio": 1.003}, "economics": econ},
+                           "1HZ75V": {"status": "DEVIATION FOUND (investigate; not yet an edge)",
+                                      "deviations": ["H5 volatility clustering"],
+                                      "H2_vol": {"ratio": 0.998}, "economics": econ}}})
+    page = dashboard.render(dashboard.gather(tmp_path, now))
+    assert "Pattern tests" in page and "0.0308%" in page
+    assert "Deviations to investigate" in page and "H5 volatility clustering" in page
+    assert "not an edge until it survives" in page
