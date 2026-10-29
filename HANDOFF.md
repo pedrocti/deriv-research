@@ -37,7 +37,7 @@ You are taking over a **research project**, not a trading-bot build. Read this f
 | audit | Daily data quality: completeness ≥ 98%, live-vs-history agreement, gap-vs-price-move bias test. Seals days (gzip + SHA-256) | `src/dresearch/audit.py` |
 | analysis | Phase 0 tests against a simulated no-pattern null; break-even costs | `src/dresearch/analysis.py` (its docstring **is the protocol**) |
 | dashboard | Read-only status page behind a secret URL | `src/dresearch/dashboard.py` |
-| MT5 snapshot | **Done** 29 Oct, 20:42 UTC, demo account on server Deriv-Demo, all 11 instruments found and imported. Median round-trip spread: V10 0.0038%, V10(1s) 0.0040%, V25 0.0113%, V25(1s) 0.0076%, V50 0.0262%, V50(1s) 0.0251%, V75 0.0336%, V75(1s) 0.0350%, V100 0.0531%, V100(1s) 0.0350%, gold 0.0037%. That is roughly 0.0004% per point of volatility. Commission is still unknown |
+| MT5 snapshot | Windows-only, read-only: spreads, swaps, specs, server clock offset | `windows/mt5_snapshot.py`, guide `docs/SETUP_WINDOWS.md` |
 | tests | 22 pytest tests against a fake Deriv server and a fake MT5 | `tests/` |
 
 The client refuses trading calls in code (`FORBIDDEN_CALLS` in `client.py`), and a test proves it. The MT5 script imports no order functions.
@@ -105,7 +105,7 @@ Use this rather than the `curl` raw URL, which can serve a cached old installer 
 | Holdout | Everything after T0. Opens **2026-11-26 19:11 UTC**. **One use only**: the code refuses a second run |
 | First audit | 2026-10-30 00:20 UTC |
 | Analysis | **Not yet run.** It is waiting for the backfill to reach 100% |
-| MT5 snapshot | **Not done.** Pedro has no MT5 installed yet; the guide is ready |
+| MT5 snapshot | **Done** 29 Oct, 20:42 UTC, demo account on server Deriv-Demo, all 11 instruments found and imported. Median round-trip spread: V10 0.0038%, V10(1s) 0.0040%, V25 0.0113%, V25(1s) 0.0076%, V50 0.0262%, V50(1s) 0.0251%, V75 0.0336%, V75(1s) 0.0350%, V100 0.0531%, V100(1s) 0.0350%, gold 0.0037%. That is roughly 0.0004% per point of volatility. Commission is still unknown |
 
 ## 7. Methodology (summary; details in the `analysis.py` docstring)
 
