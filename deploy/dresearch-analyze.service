@@ -1,12 +1,12 @@
 [Unit]
-Description=Deriv research Phase 0 pattern tests (read-only; about 1 hour)
+Description=Deriv research Phase 0 pattern tests (read-only; about 1 hour; runs in the background)
 
 [Service]
-Type=oneshot
+Type=simple
 User=dresearch
 Group=dresearch
 Environment=DRESEARCH_DATA=/var/lib/dresearch
-Environment=ANALYZE_ARGS=--days 90 --sims 100
+Environment="ANALYZE_ARGS=--days 90 --sims 100"
 ExecStart=/opt/dresearch/venv/bin/dresearch analyze $ANALYZE_ARGS
 MemoryMax=2500M
 CPUQuota=60%
