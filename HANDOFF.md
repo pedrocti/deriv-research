@@ -107,6 +107,25 @@ Use this rather than the `curl` raw URL, which can serve a cached old installer 
 | Analysis | **Not yet run.** It is waiting for the backfill to reach 100% |
 | MT5 snapshot | **Done** 29 Oct, 20:42 UTC, demo account on server Deriv-Demo, all 11 instruments found and imported. Median round-trip spread: V10 0.0038%, V10(1s) 0.0040%, V25 0.0113%, V25(1s) 0.0076%, V50 0.0262%, V50(1s) 0.0251%, V75 0.0336%, V75(1s) 0.0350%, V100 0.0531%, V100(1s) 0.0350%, gold 0.0037%. That is roughly 0.0004% per point of volatility. Commission is still unknown |
 
+## 6b. Update 30 Oct 2026 (morning, Lagos)
+
+**First discovery run:** finished 06:19 UTC. Report: `reports/analysis_discovery_*.json`.
+- **All 10 indices: consistent with a fair random process on all 8 tests.** Volatility vs label ranges from 0.992 to 1.005.
+- **Spread vs break-even:** above break-even (**no edge**) at 1, 5 and 15 minutes for every index. At 60 minutes it is **open** for 9 indices (break-even is 1.0 to 2.5 times the spread) and **no edge** for R_50.
+- **But coverage was only about 70%.** Deriv refused 6,575 backfill requests for history older than about 60 days, with an undocumented limit called `RateLimit ... ticks_history_expensive`. Backfill 0.2.x logged those refusals and moved on, so 31 Jul to 30 Aug is mostly missing (2 or 3 hours per day).
+  - The verdict is still unbiased: gaps are never bridged, and the null uses the same mask.
+  - But it has less power, which is part of why the 60-minute column stays open.
+
+**Fixed in commit 56ddfdf:**
+- a refused request is retried page by page, keeping the pages already received;
+- after a refusal: exponential wait, a halved request rate, and requests spaced evenly;
+- nothing is skipped, and "finished" now means complete.
+
+**Next step:**
+1. Pedro updates the VPS and runs `systemctl start dresearch-backfill` to fill the holes.
+2. When status shows finished, run `systemctl start dresearch-analyze` again, on the same 90-day window with unchanged analysis code. Record both runs.
+3. The speed of Deriv's limit on older history is unknown. Measure it from `events.csv` (`backfill_rate_limited` lines) before proposing a 365-day extension.
+
 ## 7. Methodology (summary; details in the `analysis.py` docstring)
 
 **Null model N1:**
