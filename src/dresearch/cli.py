@@ -179,7 +179,11 @@ def cmd_status(args) -> int:
     bf = load_json(data / "reports" / "backfill_progress.json", None)
     if bf:
         done = bf.get("hours_done_before_start", 0) + bf.get("hours_processed", 0)
-        eta = "finished" if bf.get("finished") else f"about {bf.get('eta_hours', '?')} h left"
+        eta = ("finished" if bf.get("finished") else
+               str(bf.get("status")) if str(bf.get("status", "")).startswith(("waiting", "finished with", "stopped"))
+               else f"about {bf.get('eta_hours', '?')} h left")
+        if bf.get("rate_limited"):
+            eta += f"; Deriv rate-limited {bf['rate_limited']:,} requests, all retried"
         reached = str(bf.get("oldest_hour_reached_utc", "-"))[:10]
         print(f"History download: {done:,}/{bf.get('hours_total', 0):,} symbol-hours ({eta}), "
               f"reached back to {reached}")

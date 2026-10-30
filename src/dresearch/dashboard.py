@@ -193,8 +193,11 @@ def plain_summary(g: dict) -> tuple[str, str, list[str]]:
         if bf.get("finished"):
             lines.append(f"The {bf.get('days')}-day history download is complete.")
         elif g["backfill_service"] == "active":
-            lines.append(f"Downloading {bf.get('days')} days of past prices: {done / total:.0%} done, "
-                         f"about {bf.get('eta_hours', '?')} h left.")
+            waiting = str(bf.get("status", "")).startswith("waiting")
+            lines.append(f"Downloading {bf.get('days')} days of past prices: {done / total:.0%} done"
+                         + (". Deriv limits how fast older history can be downloaded, so it pauses and retries; "
+                            "this is expected and nothing is skipped." if waiting or bf.get("rate_limited") else
+                            f", about {bf.get('eta_hours', '?')} h left."))
         else:
             lines.append(f"History download paused at {done / total:.0%}. "
                          "Start it again with <code>systemctl start dresearch-backfill</code>.")

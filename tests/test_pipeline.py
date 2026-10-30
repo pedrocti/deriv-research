@@ -206,3 +206,32 @@ def test_backfill_newest_first_resumable_and_depth_limited(tmp_path):
     assert st2["hours_written"] == 0, "already-downloaded hours must not be fetched again"
     hist_calls = sum(1 for r in fake2.requests if "ticks_history" in r)
     assert hist_calls <= 2 * 21, f"only the unavailable hours are retried, got {hist_calls}"
+
+
+@pytest.mark.parametrize("allowed_per_s", [40.0, 5.0])
+def test_backfill_waits_out_rate_limits_and_never_skips(tmp_path, allowed_per_s):
+    """Older history is rate-limited (as Deriv did on 30 Oct 2026). Every hour must still arrive,
+    including when the limit is stricter than our request rate, so multi-page hours could livelock
+    if a refusal restarted the hour."""
+    from dresearch.backfill import run_backfill
+    from dresearch.storage import save_json
+    now = T_DAY + 2 * 86400 + 1800
+    fake = FakeDeriv(now=now, history_floor=T_DAY - 86400, page_cap=1000,
+                     expensive_age_s=12 * 3600, expensive_per_s=allowed_per_s)
+
+    async def go():
+        url = await fake.start()
+        save_json(tmp_path / "config" / "symbols.json",
+                  {"endpoint": url, "collect": ["R_75", "1HZ75V"], "watchdog": ["R_75", "1HZ75V"],
+                   "intervals_s": {"R_75": 2, "1HZ75V": 1}, "history_page_size": 1000})
+        st = await run_backfill(tmp_path, days=1, per_minute=100000, clock=lambda: now,
+                                verbose=lambda *a: None, backoff_start=0.02, backoff_max=0.1, min_rate=600)
+        await fake.stop()
+        return st
+
+    st = run(go())
+    assert fake.rate_limited > 0 and st["rate_limited"] > 0, "the limit was actually hit"
+    assert st["finished"] and st["hours_skipped"] == 0 and st["errors"] == 0
+    assert st["hours_written"] == 2 * 24, "every hour of every symbol downloaded"
+    events = (tmp_path / "logs" / "events.csv").read_text()
+    assert "backfill_rate_limited" in events and "backfill_error" not in events

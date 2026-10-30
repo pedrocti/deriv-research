@@ -42,9 +42,10 @@ class DerivError(Exception):
 class RateLimiter:
     """Token bucket. Deriv documents 220 data calls/minute; we stay below that."""
 
-    def __init__(self, per_minute: int = 180):
-        self.capacity = float(per_minute)
-        self.tokens = float(per_minute)
+    def __init__(self, per_minute: float = 180, burst: float | None = None):
+        # burst=None allows a minute's worth at once; burst=1 spaces requests evenly
+        self.capacity = max(1.0, float(per_minute) if burst is None else float(burst))
+        self.tokens = self.capacity
         self.rate = per_minute / 60.0
         self.t = time.monotonic()
 

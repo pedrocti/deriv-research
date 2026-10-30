@@ -32,7 +32,8 @@ def price(sym: str, epoch: int) -> float:
 
 class FakeDeriv:
     def __init__(self, now: int, history_floor: int, page_cap: int = 1000,
-                 drop_after_ticks: int | None = None, step_s: float = 0.002):
+                 drop_after_ticks: int | None = None, step_s: float = 0.002,
+                 expensive_age_s: int | None = None, expensive_per_s: float = 5.0):
         self.now = now                    # simulated server time (epoch seconds)
         self.floor = history_floor        # no history before this epoch
         self.page_cap = page_cap
@@ -46,6 +47,12 @@ class FakeDeriv:
         self.server = None
         self.port = None
         self.requests: list[dict] = []
+        # Deriv's undocumented "ticks_history_expensive" limit on older history (seen 30 Oct 2026)
+        self.expensive_age_s = expensive_age_s
+        self.expensive_per_s = expensive_per_s
+        self._exp_tokens = 1.0
+        self._exp_t = None
+        self.rate_limited = 0
 
     # ---- helpers
     def epochs(self, sym, start, end):
@@ -83,6 +90,19 @@ class FakeDeriv:
                         continue
                     end = self.now if req.get("end") in (None, "latest") else int(req["end"])
                     start = int(req.get("start", end - 86400))
+                    if self.expensive_age_s is not None and start < self.now - self.expensive_age_s:
+                        import time as _t
+                        t = _t.monotonic()
+                        if self._exp_t is not None:
+                            self._exp_tokens = min(1.0, self._exp_tokens + (t - self._exp_t) * self.expensive_per_s)
+                        self._exp_t = t
+                        if self._exp_tokens < 1.0:
+                            self.rate_limited += 1
+                            await self._send(ws, {**base, "msg_type": "history", "error": {
+                                "code": "RateLimit",
+                                "message": "You have reached the rate limit for ticks_history_expensive."}})
+                            continue
+                        self._exp_tokens -= 1.0
                     count = min(int(req.get("count", 1000)), self.page_cap)
                     ep = self.epochs(sym, start, end)[-count:]       # latest ticks first, as documented
                     await self._send(ws, {**base, "msg_type": "history", "pip_size": SYMBOLS[sym]["pip"],
