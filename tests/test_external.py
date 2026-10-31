@@ -92,3 +92,19 @@ def test_tbill_falls_back_to_text_format_and_failures_do_not_lose_crypto(tmp_pat
     with pytest.raises(SystemExit, match="T-bill"):
         external.run_external(tmp_path / "b", get=dead, today=date(2026, 10, 31), verbose=lambda *a: None, pause=0)
     assert (tmp_path / "b" / "external" / "binance_BTCUSDT_1d.csv").exists(), "crypto still imported"
+
+
+def test_http_get_falls_back_to_curl_after_timeouts(monkeypatch):
+    import subprocess
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: (_ for _ in ()).throw(TimeoutError("stall")))
+    monkeypatch.setattr(external.time, "sleep", lambda s: None)
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/curl")
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout=b"observation_date,TB3MS\n1934-01-01,0.72\n200", stderr=b"")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    body = external.http_get("https://fred.stlouisfed.org/graph/fredgraph.csv?id=TB3MS", attempts=2)
+    assert body.startswith(b"observation_date") and calls and calls[0][0] == "curl"

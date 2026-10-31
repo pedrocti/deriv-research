@@ -105,3 +105,11 @@ def test_end_to_end_pending_then_with_crypto_costs(tmp_path):
     assert not r2["crypto"]["verdict"].startswith("PENDING")
     k = r2["crypto"]["lookbacks"]["28"]
     assert k["costs_2x"]["full"]["ann_return_pct"] < k["costs"]["full"]["ann_return_pct"]
+
+
+def test_crypto_still_runs_when_gold_data_missing(tmp_path):
+    _write_external(tmp_path / "external", np.random.default_rng(5))
+    (tmp_path / "external" / "tbill_3m_monthly_fred.csv").unlink()
+    r = trend.run_trend(tmp_path)
+    assert r["gold"]["verdict"].startswith("NO DATA") and "tbill" in r["gold"]["verdict"]
+    assert "CRYPTO VERDICT" in trend.summarise(r)

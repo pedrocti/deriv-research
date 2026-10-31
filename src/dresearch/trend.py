@@ -298,12 +298,19 @@ def crypto_costs_from_snapshot(data: Path) -> dict | None:
     return None
 
 
+def _safe(fn, ext):
+    try:
+        return fn(ext)
+    except FileNotFoundError as e:
+        return {"verdict": f"NO DATA ({Path(e.filename).name} missing: run `dresearch external`)"}
+
+
 def run_trend(data_dir: Path, code_commit: str | None = None) -> dict:
     data = Path(data_dir)
     ext = data / "external"
     report = {"trend_version": TREND_VERSION, "code_commit": code_commit,
               "generated_utc": datetime.now(timezone.utc).isoformat(),
-              "gold": run_gold(ext), "crypto": run_crypto(ext, crypto_costs_from_snapshot(data)),
+              "gold": _safe(run_gold, ext), "crypto": run_crypto(ext, crypto_costs_from_snapshot(data)),
               "paxg": run_paxg(ext)}
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     save_json(data / "reports" / f"trend_{stamp}.json", report)
@@ -317,8 +324,11 @@ def summarise(r: dict) -> str:
         return (f"  {name:26} {s['years']:5.1f}y  return {s['ann_return_pct']:6.1f}%/yr  vol {s['ann_vol_pct']:5.1f}%  "
                 f"Sharpe {s['sharpe']:5.2f}  maxDD {s['max_drawdown_pct']:6.1f}%  t {s['nw_t']:5.2f}  p {s['p_one_sided']:.3f}")
     g = r["gold"]
-    out = [f"=== TREND TEST v{r['trend_version']} ===", "",
-           f"GOLD (monthly, {GOLD['start']} to {g['last_month']}); costs = T-bill + 1.15% markup, spread 0.015%"]
+    out = [f"=== TREND TEST v{r['trend_version']} ===", ""]
+    if "lookbacks" not in g:
+        out += [f"GOLD VERDICT: {g['verdict']}", ""]
+        return "\n".join(out + _crypto_lines(r, row))
+    out.append(f"GOLD (monthly, {GOLD['start']} to {g['last_month']}); costs = T-bill + 1.15% markup, spread 0.015%")
     for L, v in g["lookbacks"].items():
         tag = " (PRIMARY)" if L == g["verdict_lookback"] else ""
         out.append(f" lookback {L} months{tag}: long {100 * v['share_of_months_long']:.0f}% of months; "
@@ -328,6 +338,11 @@ def summarise(r: dict) -> str:
     out += [" buy & hold via CFD (paying long financing):",
             row("discovery", g["buy_and_hold_cfd"]["discovery"]), row("holdout", g["buy_and_hold_cfd"]["holdout"]),
             f" GOLD VERDICT: {g['verdict']}", ""]
+    return "\n".join(out + _crypto_lines(r, row))
+
+
+def _crypto_lines(r: dict, row) -> list[str]:
+    out = []
     c = r["crypto"]
     out.append(f"CRYPTO (BTC+ETH equal weight, daily, {CRYPTO['start']} to {c['last_day']}); costs: "
                f"{'from ' + c['costs_used']['source'] if isinstance(c['costs_used'], dict) else c['costs_used']}")
@@ -339,4 +354,4 @@ def summarise(r: dict) -> str:
             "PAXG gold token (information only):"]
     for L, s in r["paxg"]["lookbacks"].items():
         out.append(row(f"lookback {L} days", s))
-    return "\n".join(out)
+    return out

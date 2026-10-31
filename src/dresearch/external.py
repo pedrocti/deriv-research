@@ -37,8 +37,28 @@ BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT", "PAXGUSDT"]
 USER_AGENT = "dresearch/0.3 (research; read-only)"
 
 
+def curl_get(url: str, timeout: float = 90) -> bytes | None:
+    """Fallback: some servers (FRED, 31 Oct 2026) stall Python's HTTP client but answer curl at once."""
+    import shutil
+    import subprocess
+    if not shutil.which("curl"):
+        raise TimeoutError("curl not available for fallback")
+    p = subprocess.run(["curl", "-sSL", "--max-time", str(int(timeout)), "-w", "\n%{http_code}", url],
+                       capture_output=True, timeout=timeout + 10)
+    body, _, code = p.stdout.rpartition(b"\n")
+    if p.returncode != 0 or not code.strip().isdigit():
+        raise TimeoutError(f"curl failed (exit {p.returncode})")
+    code = int(code)
+    if code == 404:
+        return None
+    if code >= 400:
+        raise OSError(f"HTTP {code} from {url}")
+    return body
+
+
 def http_get(url: str, timeout: float = 90, attempts: int = 3) -> bytes | None:
-    """GET a URL; None on 404. Timeouts and server errors are retried (5 s, 15 s), then raised."""
+    """GET a URL; None on 404. Timeouts and server errors are retried (5 s, 15 s); after the last
+    timeout, curl is tried once before giving up."""
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     for i in range(attempts):
         try:
@@ -51,7 +71,7 @@ def http_get(url: str, timeout: float = 90, attempts: int = 3) -> bytes | None:
                 raise
         except (TimeoutError, OSError):
             if i == attempts - 1:
-                raise
+                return curl_get(url, timeout)
         time.sleep(5 * 3 ** i)
     return None
 
