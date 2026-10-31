@@ -27,11 +27,11 @@ def fake_web(files):
 def build(tamper=False):
     files = {external.GOLD_MONTHLY_URL: GOLD_CSV,
              external.TBILL_URL: b"observation_date,TB3MS\n1971-08-01,5.0\n1971-09-01,4.7\n2026-09-01,3.9\n"}
-    for sym in external.BINANCE_SYMBOLS:
+    for sym, iv in [(x, "1d") for x in external.BINANCE_SYMBOLS] + [(x, "1h") for x in external.BINANCE_HOURLY]:
         for (y, m), t in (((2017, 8), 1501545600000), ((2017, 9), 1504224000000),
                           ((2025, 1), 1735689600000000)):          # 2025+: microseconds
-            name = f"{sym}-1d-{y}-{m:02d}.zip"
-            url = f"{external.BINANCE_BASE}/{sym}/1d/{name}"
+            name = f"{sym}-{iv}-{y}-{m:02d}.zip"
+            url = f"{external.BINANCE_BASE}/{sym}/{iv}/{name}"
             z = kline_zip([[t, 100.0, 110.0, 90.0, 105.0, 12.5, t + 1, 0, 0, 0, 0, 0]])
             files[url] = z
             files[url + ".CHECKSUM"] = (("0" * 64) if tamper else hashlib.sha256(z).hexdigest()).encode() + f"  {name}".encode()
@@ -50,6 +50,7 @@ def test_imports_gold_and_crypto_with_provenance(tmp_path):
     assert info["months_verified"] == 3 and info["first"] == "2017-08-01"
     assert any("2017-10" in g for g in info["gaps"]), "a month missing after listing is recorded"
     assert m["tbill_3m_monthly_fred.csv"]["rows"] == 3
+    assert (tmp_path / "external" / "binance_ETHUSDT_1h.csv").exists() and m["binance_ETHUSDT_1h.csv"]["months_verified"] == 3
     assert (tmp_path / "external" / "tbill_3m_monthly_fred.csv").read_text().splitlines()[1] == "1971-08,5.0"
     assert m["gold_monthly_worldbank.csv"]["rows"] == 4 and "PDDL" in m["gold_monthly_worldbank.csv"]["licence"]
 

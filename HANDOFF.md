@@ -195,6 +195,18 @@ Data:
 2. A forward demo of the v1.0 primary rules (slow evidence).
 3. Stop.
 
+## 6f. Track C: Ethereum hours-to-days, sized for $100 (protocol v1.0, committed 31 Oct 2026 before any result)
+
+Pedro's brief after Track B: his own rules, holds of hours to days, gold/BTC/ETH, max loss 10%, account $100.
+Position-size check: at minimum lots only ETH (0.1) fits a $100 account with ~2% risk per trade; gold (0.01 lot = 1 oz)
+needs ~$2,300 and BTC (0.01) ~$1,200. So ETH is tested; BTC runs as information only.
+Rules are the docstring of `src/dresearch/swing.py` (S1 crash bounce, S2 daily follow-through, S3 hour of day;
+0.9%/1.8% stops; Holm across five variants; holdout from 2023-01-01; CANDIDATE needs discovery Holm p<0.05,
+holdout mean>0 with p<0.10, and still >0 at 2x costs). Data: Binance ETHUSDT/BTCUSDT 1h (`dresearch external`).
+Simulator check: tests show random entries on a fair price earn no significant profit at 0.9%, 1.8% or no stop
+(an earlier test harness with shallow fixed wicks made tight stops look profitable; bars are now cut from a finer path).
+Run: `dresearch swing`. Result: (to be recorded here).
+
 ## 7. Methodology (summary; details in the `analysis.py` docstring)
 
 **Null model N1:**

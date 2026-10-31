@@ -131,6 +131,12 @@ def cmd_external(args) -> int:
     return 0
 
 
+def cmd_swing(args) -> int:
+    from .swing import run_swing, summarise
+    print(summarise(run_swing(Path(args.data), _code_commit())))
+    return 0
+
+
 def cmd_trend(args) -> int:
     from .trend import run_trend, summarise
     print(summarise(run_trend(Path(args.data), _code_commit())))
@@ -230,6 +236,7 @@ def main(argv=None) -> int:
     cd = sub.add_parser("candles", help="Track B: download gold and crypto candle history")
     cd.add_argument("--hourly-days", type=int, default=730)
     sub.add_parser("trend", help="Track B: run the preregistered trend-following test (gold, crypto)")
+    sub.add_parser("swing", help="Track C: run the preregistered Ethereum hours-to-days test")
     sub.add_parser("external", help="Track B: long gold (World Bank) and crypto (Binance) history")
     im = sub.add_parser("import-mt5", help="load an mt5_snapshot JSON made on your Windows PC")
     im.add_argument("file")
@@ -249,4 +256,4 @@ def main(argv=None) -> int:
             "dashboard-serve": cmd_dashboard_serve, "dashboard-url": cmd_dashboard_url,
             "freeze": cmd_freeze, "analyze": cmd_analyze, "import-mt5": cmd_import_mt5,
             "candles": cmd_candles, "external": cmd_external,
-            "trend": cmd_trend}[args.cmd](args)
+            "trend": cmd_trend, "swing": cmd_swing}[args.cmd](args)

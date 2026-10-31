@@ -34,6 +34,7 @@ TBILL_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=TB3MS"
 TBILL_FALLBACK_URL = "https://fred.stlouisfed.org/data/TB3MS.txt"     # same series, plain-text format
 BINANCE_BASE = "https://data.binance.vision/data/spot/monthly/klines"
 BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT", "PAXGUSDT"]
+BINANCE_HOURLY = ["ETHUSDT", "BTCUSDT"]          # for the hours-to-days (swing) protocol
 USER_AGENT = "dresearch/0.3 (research; read-only)"
 
 
@@ -127,12 +128,12 @@ def parse_kline_zip(raw: bytes) -> list[tuple[int, float, float, float, float, f
 
 
 def fetch_binance_daily(symbol: str, first: date, last: date, get=http_get,
-                        pause: float = 0.15, verbose=print) -> tuple[list, list[str]]:
+                        pause: float = 0.15, verbose=print, interval: str = "1d") -> tuple[list, list[str]]:
     rows, files = [], []
     started = False
     for y, m in months(first, last):
-        name = f"{symbol}-1d-{y}-{m:02d}.zip"
-        url = f"{BINANCE_BASE}/{symbol}/1d/{name}"
+        name = f"{symbol}-{interval}-{y}-{m:02d}.zip"
+        url = f"{BINANCE_BASE}/{symbol}/{interval}/{name}"
         raw = get(url)
         if raw is None:
             if started:
@@ -210,23 +211,26 @@ def run_external(data_dir: Path, get=http_get, today: date | None = None, verbos
         failures.append("T-bill rate (FRED unreachable): the gold test cannot run until this succeeds")
         verbose("  FAILED: FRED did not answer in either format. Continuing with the crypto data.")
 
-    for sym in BINANCE_SYMBOLS:
-        verbose(f"{sym}, daily (Binance public data, checksum-verified) ...")
-        rows, files = fetch_binance_daily(sym, date(2017, 1, 1), last_full, get=get, pause=pause, verbose=verbose)
-        path = out_dir / f"binance_{sym}_1d.csv"
+    jobs = [(s, "1d") for s in BINANCE_SYMBOLS] + [(s, "1h") for s in BINANCE_HOURLY]
+    for sym, iv in jobs:
+        label = "daily" if iv == "1d" else "hourly"
+        verbose(f"{sym}, {label} (Binance public data, checksum-verified) ...")
+        rows, files = fetch_binance_daily(sym, date(2017, 1, 1), last_full, get=get, pause=pause,
+                                          verbose=verbose, interval=iv)
+        path = out_dir / f"binance_{sym}_{iv}.csv"
         with open(path, "w", encoding="utf-8") as fh:
             fh.write("epoch,open,high,low,close,volume\n")
             for r in rows:
                 fh.write(",".join(repr(x) if isinstance(x, float) else str(x) for x in r) + "\n")
         first = datetime.fromtimestamp(rows[0][0], timezone.utc).date().isoformat() if rows else None
         lastd = datetime.fromtimestamp(rows[-1][0], timezone.utc).date().isoformat() if rows else None
-        manifest[path.name] = {"url_pattern": f"{BINANCE_BASE}/{sym}/1d/{sym}-1d-YYYY-MM.zip",
+        manifest[path.name] = {"url_pattern": f"{BINANCE_BASE}/{sym}/{iv}/{sym}-{iv}-YYYY-MM.zip",
                                "rows": len(rows), "first": first, "last": lastd,
                                "months_verified": sum(1 for f in files if f.endswith("ok")),
                                "gaps": [f for f in files if "404" in f],
                                "licence": "Binance public data (github.com/binance/binance-public-data, MIT)",
                                "retrieved_utc": now_iso}
-        verbose(f"  {len(rows):,} days, {first} to {lastd}, "
+        verbose(f"  {len(rows):,} {'days' if iv == '1d' else 'hours'}, {first} to {lastd}, "
                 f"{manifest[path.name]['months_verified']} monthly files checksum-verified")
     save_json(out_dir / "MANIFEST.json", manifest)
     if failures:

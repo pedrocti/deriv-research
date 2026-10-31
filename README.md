@@ -32,6 +32,8 @@ Measured false-alarm rate on fair random walks, 200,000 ticks, 40 simulations, H
 
 **Track B test:** `dresearch external` imports the long history (gold monthly from 1960 via the World Bank, the US T-bill rate from FRED, and Bitcoin, Ethereum and PAXG daily from Binance, all checksum- or hash-recorded). `dresearch trend` then runs the preregistered trend-following test. Its rules are the docstring at the top of `src/dresearch/trend.py`, committed before any result was seen.
 
+**Track C test:** `dresearch swing` runs the preregistered Ethereum hours-to-days test sized for a $100 account (rules: docstring of `src/dresearch/swing.py`, committed before any result). Needs the hourly data from `dresearch external`.
+
 **Update to a new version:** run the same `curl ... | bash` line again. It restarts the collector itself.
 
 **Stop collecting:** `systemctl disable --now dresearch-collector dresearch-audit.timer`
