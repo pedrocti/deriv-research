@@ -163,6 +163,38 @@ Pedro chose to research gold, possibly with crypto. Nothing has been built for i
 
 Do not reuse the synthetics null model: gold and crypto have real drift and volatility clustering.
 
+## 6e. Track B results (31 Oct 2026, protocol v1.0, commit 03008c3; run on code 0d50cd5)
+
+Data:
+- gold monthly 1971-10 to 2026-09 (World Bank);
+- T-bill rate (FRED TB3MS, fetched via the curl fallback);
+- BTC, ETH and PAXG daily from Binance, checksum-verified;
+- Deriv costs from MT5 snapshot 2026-10-31: XAUUSD swap -4.24 / +1.88 %/yr; BTCUSD -20 / -20 %/yr; ETHUSD -15 / -15 %/yr; spreads BTC 0.0032%, ETH 0.026%, XAU 0.0038%.
+
+**Gold, primary L=12, after costs:**
+
+| Period | Return/yr | Sharpe | NW t | p | Max DD |
+| --- | --- | --- | --- | --- | --- |
+| Discovery 1971-2012 | 7.7% | 0.68 | 3.85 | <0.001 | -35% |
+| Holdout 2013+ | 3.0% | 0.32 | 1.01 | 0.156 | -38% |
+| Holdout, costs doubled | 1.8% | 0.22 | — | — | — |
+
+- Buy-and-hold CFD in the holdout: Sharpe 0.38.
+- L=3 holdout Sharpe 0.45 (p 0.066); L=6 holdout Sharpe 0.54 (p 0.040). These are **not** to be adopted post hoc.
+- **Verdict: INCONCLUSIVE.** The edge decayed by about half after publication and is no better than holding gold.
+
+**Crypto, BTC+ETH, after costs:**
+- Discovery: Holm p 0.047 for L=7 and L=28.
+- Holdout 2023+: L=28 Sharpe 0.43 (p 0.19); L=7 Sharpe -0.13; L=90 Sharpe 0.09.
+- **Verdict: INCONCLUSIVE.**
+
+**PAXG (information only):** L=60 Sharpe 0.70, L=120 Sharpe 0.65, over 5.8 years.
+
+**Options put to Pedro:**
+1. A preregistered diversified multi-market trend portfolio (World Bank commodities, FRED FX, plus Deriv costs per instrument). Recommended if continuing.
+2. A forward demo of the v1.0 primary rules (slow evidence).
+3. Stop.
+
 ## 7. Methodology (summary; details in the `analysis.py` docstring)
 
 **Null model N1:**
