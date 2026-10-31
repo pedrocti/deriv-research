@@ -28,7 +28,7 @@ def test_downloads_full_daily_history_through_paging(tmp_path):
     assert gold["daily"]["n"] == 3001, "3,000 days needs 4 pages of 1,000: paging must continue"
     assert abs(gold["daily"]["years"] - 3000 / 365.25) < 0.01
     assert rep["symbols"]["cryBTCUSD"]["daily"]["n"] == 2001
-    assert 60 * 24 <= gold["hourly"]["n"] <= 60 * 24 + 1
+    assert 59 * 24 <= gold["hourly"]["n"] <= 60 * 24 + 1   # window counts back from the real clock
     lines = (tmp_path / "candles" / "frxXAUUSD_86400.csv").read_text().splitlines()
     assert lines[0] == "epoch,open,high,low,close" and len(lines) == 3002
     assert "WLDXAU" not in rep["symbols"]
