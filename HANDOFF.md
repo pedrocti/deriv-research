@@ -126,6 +126,43 @@ Use this rather than the `curl` raw URL, which can serve a cached old installer 
 2. When status shows finished, run `systemctl start dresearch-analyze` again, on the same 90-day window with unchanged analysis code. Record both runs.
 3. The speed of Deriv's limit on older history is unknown. Measure it from `events.csv` (`backfill_rate_limited` lines) before proposing a 365-day extension.
 
+## 6c. Track A final (31 Oct 2026, 00:55 Lagos): NO EDGE, closed
+
+- **Second discovery run on complete data:** coverage 98.9%, same 90-day window, analysis code unchanged since the freeze.
+- **All 10 indices are consistent with a fair random process on all 8 tests.** Measured volatility is within 0.5% of each label (0.995 to 1.005).
+
+Break-even round-trip cost, in index points, for the simple momentum/reversal rule (95% bound), against the MT5 spread:
+
+| Index | 1 min | 5 min | 15 min | 60 min | MT5 spread |
+| --- | --- | --- | --- | --- | --- |
+| R_10 | 0.0025 | 0.0175 | 0.0620 | 0.342 | 0.188 |
+| R_25 | 0.0046 | 0.0458 | 0.0736 | 0.326 | 0.331 |
+| R_50 | 0.00025 | 0.0012 | 0.0041 | 0.0208 | 0.023 |
+| R_75 | 0.132 | 0.868 | 2.478 | 12.11 | 12.09 |
+| R_100 | 0.0033 | 0.0184 | 0.0538 | 0.3125 | 0.300 |
+| 1HZ10V | 0.0081 | 0.0232 | 0.0828 | 0.461 | 0.38 |
+| 1HZ25V | 1.66 | 7.81 | 19.65 | 135.4 | 70.05 |
+| 1HZ50V | 0.86 | 3.70 | 8.21 | 64.33 | 51.75 |
+| 1HZ75V | 0.029 | 0.117 | 0.305 | 1.734 | 1.71 |
+| 1HZ100V | 0.0080 | 0.0295 | 0.0923 | 0.8325 | 0.42 |
+
+**Verdict:**
+- **No edge** at 1 to 15 minutes on every index; the spread is 3 to over 100 times the break-even.
+- At 60 minutes, R_25 and R_50 are no edge. The other eight are open, with break-even 1.0 to 2.0 times the spread. No IC was significant, so the best case is roughly covering the spread. That is not an edge. **Decision: no bot for Volatility Indices.**
+- **Remaining:** keep the collector running, then run `dresearch analyze --holdout` once, on or after 2026-11-26 19:11 UTC, as formal confirmation. After that the Track A services can be stopped.
+- **Measured download speed for history older than 60 days:** about 400 symbol-hours per hour, with rare refusals once requests were spaced out.
+
+## 6d. Track B (gold, possibly crypto): started 31 Oct 2026
+
+Pedro chose to research gold, possibly with crypto. Nothing has been built for it yet. Plan:
+1. Run a cost kill-check first, using swaps from the MT5 snapshot.
+2. Probe Deriv's free candle history depth for frxXAUUSD and crypto.
+3. Preregister a small time-series-momentum hypothesis set.
+4. Walk-forward validation with a deflated Sharpe ratio and costs.
+5. A forward demo period as the holdout.
+
+Do not reuse the synthetics null model: gold and crypto have real drift and volatility clustering.
+
 ## 7. Methodology (summary; details in the `analysis.py` docstring)
 
 **Null model N1:**
