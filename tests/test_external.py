@@ -67,3 +67,28 @@ def test_blocked_gold_source_writes_nothing(tmp_path):
         external.run_external(tmp_path, get=fake_web(files), today=date(2026, 10, 31),
                               verbose=lambda *a: None, pause=0)
     assert not (tmp_path / "external" / "gold_monthly_worldbank.csv").exists()
+
+
+def test_tbill_falls_back_to_text_format_and_failures_do_not_lose_crypto(tmp_path):
+    files = build()
+    del files[external.TBILL_URL]                              # CSV endpoint "times out"
+    txt = ("Title: 3-Month Treasury Bill\nUnits: Percent\n\nDATE        VALUE\n" +
+           "".join(f"19{y:02d}-{m:02d}-01  {4 + m / 10:.2f}\n" for y in range(60, 75) for m in range(1, 13)))
+    files[external.TBILL_FALLBACK_URL] = txt.encode()
+
+    def get(url):
+        if url == external.TBILL_URL:
+            raise TimeoutError("read timed out")
+        return files.get(url)
+
+    m = external.run_external(tmp_path, get=get, today=date(2026, 10, 31), verbose=lambda *a: None, pause=0)
+    assert m["tbill_3m_monthly_fred.csv"]["url"] == external.TBILL_FALLBACK_URL
+    assert m["tbill_3m_monthly_fred.csv"]["rows"] == 180
+
+    def dead(url):
+        if "fred" in url:
+            raise TimeoutError("down")
+        return files.get(url)
+    with pytest.raises(SystemExit, match="T-bill"):
+        external.run_external(tmp_path / "b", get=dead, today=date(2026, 10, 31), verbose=lambda *a: None, pause=0)
+    assert (tmp_path / "b" / "external" / "binance_BTCUSDT_1d.csv").exists(), "crypto still imported"

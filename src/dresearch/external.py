@@ -31,21 +31,29 @@ GOLD_MONTHLY_URL = "https://datahub.io/core/gold-prices/_r/-/data/monthly.csv"
 # 3-month US Treasury bill rate, monthly average, % per year (Federal Reserve, public domain).
 # Used to charge historically realistic overnight financing in the gold test.
 TBILL_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=TB3MS"
+TBILL_FALLBACK_URL = "https://fred.stlouisfed.org/data/TB3MS.txt"     # same series, plain-text format
 BINANCE_BASE = "https://data.binance.vision/data/spot/monthly/klines"
 BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT", "PAXGUSDT"]
 USER_AGENT = "dresearch/0.3 (research; read-only)"
 
 
-def http_get(url: str, timeout: float = 60) -> bytes | None:
-    """GET a URL; None on 404. Other errors raise."""
+def http_get(url: str, timeout: float = 90, attempts: int = 3) -> bytes | None:
+    """GET a URL; None on 404. Timeouts and server errors are retried (5 s, 15 s), then raised."""
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.read()
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return None
-        raise
+    for i in range(attempts):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            if e.code < 500 or i == attempts - 1:
+                raise
+        except (TimeoutError, OSError):
+            if i == attempts - 1:
+                raise
+        time.sleep(5 * 3 ** i)
+    return None
 
 
 def months(start: date, end: date):
@@ -66,8 +74,15 @@ def parse_gold_monthly(raw: bytes) -> list[tuple[str, float]]:
 
 
 def parse_tbill(raw: bytes) -> list[tuple[str, float]]:
+    """FRED TB3MS as CSV (observation_date,TB3MS) or as FRED's .txt (header, then 'YYYY-MM-DD  v')."""
+    import re
+    text = raw.decode("utf-8-sig")
+    if "TB3MS" not in text.splitlines()[0]:
+        rows = [(m.group(1), float(m.group(2))) for m in
+                re.finditer(r"^(\d{4}-\d{2})-\d{2}\s+([0-9.]+)\s*$", text, re.M)]
+        return sorted(rows)
     rows = []
-    for r in csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))):
+    for r in csv.DictReader(io.StringIO(text)):
         d = (r.get("observation_date") or r.get("DATE") or r.get("date") or "").strip()
         v = (r.get("TB3MS") or "").strip()
         if d and v and v != ".":
@@ -147,20 +162,33 @@ def run_external(data_dir: Path, get=http_get, today: date | None = None, verbos
     verbose(f"  {len(gold)} months, {gold[0][0]} to {gold[-1][0]}" if gold else "  no rows!")
 
     verbose("US 3-month Treasury bill rate, monthly (FRED TB3MS) ...")
-    raw = get(TBILL_URL)
-    if raw is None or raw.lstrip()[:1] == b"<":
-        raise SystemExit("T-bill source did not return CSV (blocked or moved).")
-    tb = parse_tbill(raw)
-    with open(out_dir / "tbill_3m_monthly_fred.csv", "w", encoding="utf-8") as fh:
-        fh.write("month,pct_per_year\n")
-        for mth, v in tb:
-            fh.write(f"{mth},{v!r}\n")
-    manifest["tbill_3m_monthly_fred.csv"] = {
-        "url": TBILL_URL, "sha256_source": hashlib.sha256(raw).hexdigest(), "rows": len(tb),
-        "first": tb[0][0] if tb else None, "last": tb[-1][0] if tb else None,
-        "licence": "Public domain (Board of Governors of the Federal Reserve System via FRED)",
-        "retrieved_utc": now_iso}
-    verbose(f"  {len(tb)} months, {tb[0][0]} to {tb[-1][0]}" if tb else "  no rows!")
+    failures = []
+    tb, used = [], None
+    for url in (TBILL_URL, TBILL_FALLBACK_URL):
+        try:
+            raw = get(url)
+        except Exception as exc:                       # timeouts, resets: try the other format
+            verbose(f"  {url}: {type(exc).__name__}; trying the next source")
+            continue
+        if raw and raw.lstrip()[:1] != b"<":
+            tb = parse_tbill(raw)
+            if tb:
+                used = url
+                break
+    if used:
+        with open(out_dir / "tbill_3m_monthly_fred.csv", "w", encoding="utf-8") as fh:
+            fh.write("month,pct_per_year\n")
+            for mth, v in tb:
+                fh.write(f"{mth},{v!r}\n")
+        manifest["tbill_3m_monthly_fred.csv"] = {
+            "url": used, "sha256_source": hashlib.sha256(raw).hexdigest(), "rows": len(tb),
+            "first": tb[0][0], "last": tb[-1][0],
+            "licence": "Public domain (Board of Governors of the Federal Reserve System via FRED)",
+            "retrieved_utc": now_iso}
+        verbose(f"  {len(tb)} months, {tb[0][0]} to {tb[-1][0]}")
+    else:
+        failures.append("T-bill rate (FRED unreachable): the gold test cannot run until this succeeds")
+        verbose("  FAILED: FRED did not answer in either format. Continuing with the crypto data.")
 
     for sym in BINANCE_SYMBOLS:
         verbose(f"{sym}, daily (Binance public data, checksum-verified) ...")
@@ -181,4 +209,7 @@ def run_external(data_dir: Path, get=http_get, today: date | None = None, verbos
         verbose(f"  {len(rows):,} days, {first} to {lastd}, "
                 f"{manifest[path.name]['months_verified']} monthly files checksum-verified")
     save_json(out_dir / "MANIFEST.json", manifest)
+    if failures:
+        raise SystemExit("Finished with problems:\n  - " + "\n  - ".join(failures) +
+                         "\nRe-run `dresearch external` later; completed files are kept.")
     return manifest
