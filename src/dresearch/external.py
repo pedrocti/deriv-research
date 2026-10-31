@@ -28,6 +28,9 @@ from pathlib import Path
 from .storage import load_json, save_json
 
 GOLD_MONTHLY_URL = "https://datahub.io/core/gold-prices/_r/-/data/monthly.csv"
+# 3-month US Treasury bill rate, monthly average, % per year (Federal Reserve, public domain).
+# Used to charge historically realistic overnight financing in the gold test.
+TBILL_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=TB3MS"
 BINANCE_BASE = "https://data.binance.vision/data/spot/monthly/klines"
 BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT", "PAXGUSDT"]
 USER_AGENT = "dresearch/0.3 (research; read-only)"
@@ -59,6 +62,16 @@ def parse_gold_monthly(raw: bytes) -> list[tuple[str, float]]:
         p = (r.get("Price") or r.get("price") or "").strip()
         if d and p:
             rows.append((d[:7], float(p)))
+    return sorted(rows)
+
+
+def parse_tbill(raw: bytes) -> list[tuple[str, float]]:
+    rows = []
+    for r in csv.DictReader(io.StringIO(raw.decode("utf-8-sig"))):
+        d = (r.get("observation_date") or r.get("DATE") or r.get("date") or "").strip()
+        v = (r.get("TB3MS") or "").strip()
+        if d and v and v != ".":
+            rows.append((d[:7], float(v)))
     return sorted(rows)
 
 
@@ -132,6 +145,22 @@ def run_external(data_dir: Path, get=http_get, today: date | None = None, verbos
         "note": "pegged_era=1 before 1971-09 (USD/gold peg): exclude from trend tests",
         "retrieved_utc": now_iso}
     verbose(f"  {len(gold)} months, {gold[0][0]} to {gold[-1][0]}" if gold else "  no rows!")
+
+    verbose("US 3-month Treasury bill rate, monthly (FRED TB3MS) ...")
+    raw = get(TBILL_URL)
+    if raw is None or raw.lstrip()[:1] == b"<":
+        raise SystemExit("T-bill source did not return CSV (blocked or moved).")
+    tb = parse_tbill(raw)
+    with open(out_dir / "tbill_3m_monthly_fred.csv", "w", encoding="utf-8") as fh:
+        fh.write("month,pct_per_year\n")
+        for mth, v in tb:
+            fh.write(f"{mth},{v!r}\n")
+    manifest["tbill_3m_monthly_fred.csv"] = {
+        "url": TBILL_URL, "sha256_source": hashlib.sha256(raw).hexdigest(), "rows": len(tb),
+        "first": tb[0][0] if tb else None, "last": tb[-1][0] if tb else None,
+        "licence": "Public domain (Board of Governors of the Federal Reserve System via FRED)",
+        "retrieved_utc": now_iso}
+    verbose(f"  {len(tb)} months, {tb[0][0]} to {tb[-1][0]}" if tb else "  no rows!")
 
     for sym in BINANCE_SYMBOLS:
         verbose(f"{sym}, daily (Binance public data, checksum-verified) ...")

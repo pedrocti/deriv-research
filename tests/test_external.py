@@ -25,7 +25,8 @@ def fake_web(files):
 
 
 def build(tamper=False):
-    files = {external.GOLD_MONTHLY_URL: GOLD_CSV}
+    files = {external.GOLD_MONTHLY_URL: GOLD_CSV,
+             external.TBILL_URL: b"observation_date,TB3MS\n1971-08-01,5.0\n1971-09-01,4.7\n2026-09-01,3.9\n"}
     for sym in external.BINANCE_SYMBOLS:
         for (y, m), t in (((2017, 8), 1501545600000), ((2017, 9), 1504224000000),
                           ((2025, 1), 1735689600000000)):          # 2025+: microseconds
@@ -48,6 +49,8 @@ def test_imports_gold_and_crypto_with_provenance(tmp_path):
     info = m["binance_BTCUSDT_1d.csv"]
     assert info["months_verified"] == 3 and info["first"] == "2017-08-01"
     assert any("2017-10" in g for g in info["gaps"]), "a month missing after listing is recorded"
+    assert m["tbill_3m_monthly_fred.csv"]["rows"] == 3
+    assert (tmp_path / "external" / "tbill_3m_monthly_fred.csv").read_text().splitlines()[1] == "1971-08,5.0"
     assert m["gold_monthly_worldbank.csv"]["rows"] == 4 and "PDDL" in m["gold_monthly_worldbank.csv"]["licence"]
 
 

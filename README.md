@@ -30,6 +30,8 @@ Measured false-alarm rate on fair random walks, 200,000 ticks, 40 simulations, H
 
 **Track B (gold, crypto):** `dresearch candles` downloads daily candles for spot gold, Bitcoin and Ethereum, as far back as Deriv serves them, plus 2 years of hourly candles, into `/var/lib/dresearch/candles/`. The Windows snapshot also reads BTCUSD and ETHUSD and prints the yearly cost of holding each position overnight (swap).
 
+**Track B test:** `dresearch external` imports the long history (gold monthly from 1960 via the World Bank, the US T-bill rate from FRED, and Bitcoin, Ethereum and PAXG daily from Binance, all checksum- or hash-recorded). `dresearch trend` then runs the preregistered trend-following test. Its rules are the docstring at the top of `src/dresearch/trend.py`, committed before any result was seen.
+
 **Update to a new version:** run the same `curl ... | bash` line again. It restarts the collector itself.
 
 **Stop collecting:** `systemctl disable --now dresearch-collector dresearch-audit.timer`
