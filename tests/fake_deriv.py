@@ -123,7 +123,7 @@ class FakeDeriv:
                 elif "ticks" in req:
                     sym = req["ticks"]
                     self.conns[ws].add(sym)
-                    e = self.now
+                    e = self.now - self.now % SYMBOLS[sym]["interval"]   # last on-schedule tick
                     await self._send(ws, {**base, "msg_type": "tick", "subscription": {"id": f"sub-{sym}"},
                                           "tick": {"symbol": sym, "epoch": e, "quote": price(sym, e),
                                                    "pip_size": SYMBOLS[sym]["pip"]}})

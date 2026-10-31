@@ -85,15 +85,20 @@ def audit_symbol(data_dir: Path, symbol: str, day: str, interval: float | None, 
     span_start, span_end = max(day_start, int(ep[0])), min(day_start + 86400 - 1, int(ep[-1]))
     expected_day = 86400 / interval
     expected_span = (span_end - span_start) / interval + 1
-    off_grid = int(np.sum((ep - ep[0]) % int(interval) != 0))
+    # The schedule is fixed to the clock (epoch % interval == 0), the same grid the analysis uses.
+    on = ep % int(interval) == 0
+    off_grid = int(np.sum(~on))
+    n_on = int(np.sum(on))
+    live_arr = np.array(sorted(live), dtype=np.int64)
+    n_live_on = int(np.sum(live_arr % int(interval) == 0))
     runs = gap_runs(ep, interval)
     live_ep = np.array(sorted(live), dtype=np.int64)
     res.update({
         "interval_s": interval,
         "off_schedule_ticks": off_grid,
-        "completeness_full_day": len(union) / expected_day,
-        "completeness_within_recorded_span": len(union) / expected_span,
-        "live_completeness_within_recorded_span": len(live) / expected_span,
+        "completeness_full_day": n_on / expected_day,
+        "completeness_within_recorded_span": n_on / expected_span,
+        "live_completeness_within_recorded_span": n_live_on / expected_span,
         "gap_count": len(runs),
         "ticks_missing": int(sum(r[2] for r in runs)),
         "largest_gaps": [{"from_utc": datetime.fromtimestamp(a, timezone.utc).isoformat(),

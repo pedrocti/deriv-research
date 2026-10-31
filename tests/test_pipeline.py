@@ -235,3 +235,16 @@ def test_backfill_waits_out_rate_limits_and_never_skips(tmp_path, allowed_per_s)
     assert st["hours_written"] == 2 * 24, "every hour of every symbol downloaded"
     events = (tmp_path / "logs" / "events.csv").read_text()
     assert "backfill_rate_limited" in events and "backfill_error" not in events
+
+
+def test_audit_counts_only_on_schedule_ticks(tmp_path):
+    """An off-schedule tick must be flagged, never push completeness above 100%."""
+    from dresearch.storage import save_json
+    save_json(tmp_path / "config" / "symbols.json",
+              {"collect": ["R_75"], "watchdog": ["R_75"], "intervals_s": {"R_75": 2}})
+    ticks = {T_DAY + 2 * i: 100.0 + i * 0.01 for i in range(1800)}
+    ticks[T_DAY + 1001] = 150.0                                  # odd second: off the 2 s schedule
+    write_history_hour(tmp_path, "R_75", T_DAY, ticks, 2)
+    r = audit.run_audit(tmp_path, "2026-10-01", seal=False)["symbols"]["R_75"]
+    assert r["completeness_within_recorded_span"] == pytest.approx(1.0)
+    assert r["off_schedule_ticks"] == 1 and "off the 2s schedule" in r["status"]
