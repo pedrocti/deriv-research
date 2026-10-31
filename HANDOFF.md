@@ -205,7 +205,11 @@ Rules are the docstring of `src/dresearch/swing.py` (S1 crash bounce, S2 daily f
 holdout mean>0 with p<0.10, and still >0 at 2x costs). Data: Binance ETHUSDT/BTCUSDT 1h (`dresearch external`).
 Simulator check: tests show random entries on a fair price earn no significant profit at 0.9%, 1.8% or no stop
 (an earlier test harness with shallow fixed wicks made tight stops look profitable; bars are now cut from a finer path).
-Run: `dresearch swing`. Result: (to be recorded here).
+Run: `dresearch swing`. **Result (31 Oct 2026, run on aaa1078): NO EDGE. All 5 ETH variants NOT SUPPORTED** (discovery Holm p = 1.000
+for all; every discovery mean <= 0). S3: best hour 21:00 UTC, Bonferroni p 0.41, no signal. ETH S1 0.9% holdout +0.04%/trade, t 0.33,
+negative at 2x costs; its $100-account line ($191.92) is luck from the halt rule skipping trades, not evidence. BTC (info only) S2 holdout
+positive (p ~0.07) but discovery strongly negative (t -3): opposite signs = regime/noise. Fix after the run: the BTC account line had used the
+0.1 ETH lot (0.1 BTC); now 0.01 BTC. Verdicts unaffected (they use per-trade returns).
 
 ## 7. Methodology (summary; details in the `analysis.py` docstring)
 

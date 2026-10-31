@@ -60,6 +60,7 @@ VARIANTS = [("S1 crash bounce", "S1", 0.009), ("S1 crash bounce", "S1", 0.018),
             ("S2 day follow-through", "S2", 0.009), ("S2 day follow-through", "S2", 0.018),
             ("S3 hour of day", "S3", 0.009)]
 MIN_LOT_ETH = 0.1
+MIN_LOT_BTC = 0.01          # Deriv MT5 minimum; used only for the $100 account line
 
 
 def load_hourly(path: Path) -> dict[str, np.ndarray]:
@@ -214,7 +215,7 @@ def trade_stats(trades: list[dict], stop: float) -> dict:
             "t": t, "p_one_sided": float(stats.t.sf(t, len(x) - 1)) if math.isfinite(t) else float("nan")}
 
 
-def account_sim(trades: list[dict], start_equity: float = 100.0) -> dict:
+def account_sim(trades: list[dict], start_equity: float = 100.0, lot: float = MIN_LOT_ETH) -> dict:
     eq, peak, maxdd = start_equity, start_equity, 0.0
     month_pnl, month, halted_months, stopped, taken = 0.0, None, set(), False, 0
     for tr in trades:
@@ -223,8 +224,8 @@ def account_sim(trades: list[dict], start_equity: float = 100.0) -> dict:
             month, month_pnl = m, 0.0
         if stopped or m in halted_months:
             continue
-        pnl = (tr["exit"] - tr["entry"]) * tr["dir"] * MIN_LOT_ETH - \
-            COSTS["swap_per_year"] / 8760 * tr["hours"] * tr["entry"] * MIN_LOT_ETH
+        pnl = (tr["exit"] - tr["entry"]) * tr["dir"] * lot - \
+            COSTS["swap_per_year"] / 8760 * tr["hours"] * tr["entry"] * lot
         eq += pnl
         taken += 1
         month_pnl += pnl
@@ -253,7 +254,7 @@ def verdict(p_holm: float, hold: dict, hold2: dict) -> str:
     return "INCONCLUSIVE"
 
 
-def run_market(path: Path) -> dict:
+def run_market(path: Path, lot: float = MIN_LOT_ETH) -> dict:
     d = load_hourly(path)
     lab = labels(d)
     sel = select_s3_hour(d, *DISCOVERY)
@@ -274,7 +275,7 @@ def run_market(path: Path) -> dict:
         _, hld2 = split(trs2)
         res["variants"][vk] = {"discovery": trade_stats(dsc, stop), "holdout": trade_stats(hld, stop),
                                "holdout_costs_2x": trade_stats(hld2, stop),
-                               "account_holdout": account_sim(hld)}
+                               "account_holdout": account_sim(hld, lot=lot)}
     p = {k: v["discovery"].get("p_one_sided", 1.0) if v["discovery"].get("n", 0) >= 5 else 1.0
          for k, v in res["variants"].items()}
     items = sorted(p.items(), key=lambda kv: kv[1])
@@ -297,7 +298,7 @@ def run_swing(data_dir: Path, code_commit: str | None = None) -> dict:
               "ETH": run_market(ext / "binance_ETHUSDT_1h.csv")}
     btc = ext / "binance_BTCUSDT_1h.csv"
     if btc.exists():
-        report["BTC_information_only"] = run_market(btc)
+        report["BTC_information_only"] = run_market(btc, lot=MIN_LOT_BTC)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     save_json(Path(data_dir) / "reports" / f"swing_{stamp}.json", report)
     return report
