@@ -20,6 +20,8 @@ SYMBOLS = {
     "frxEURUSD": {"interval": 1, "pip": 5, "base": 1.08, "name": "EUR/USD"},
     "frxAUDCAD": {"interval": 1, "pip": 5, "base": 0.98, "name": "AUD/CAD"},      # contains "XAU" by accident
     "WLDXAU": {"interval": 1, "pip": 3, "base": 926933.0, "name": "Gold Basket"},  # a basket, not spot gold
+    "cryBTCUSD": {"interval": 1, "pip": 2, "base": 95000.0, "name": "BTC/USD"},
+    "cryETHUSD": {"interval": 1, "pip": 2, "base": 3500.0, "name": "ETH/USD"},
 }
 
 
@@ -53,6 +55,7 @@ class FakeDeriv:
         self._exp_tokens = 1.0
         self._exp_t = None
         self.rate_limited = 0
+        self.candle_floor: dict[str, int] = {}
 
     # ---- helpers
     def epochs(self, sym, start, end):
@@ -104,6 +107,16 @@ class FakeDeriv:
                             continue
                         self._exp_tokens -= 1.0
                     count = min(int(req.get("count", 1000)), self.page_cap)
+                    if req.get("style") == "candles":
+                        g = int(req.get("granularity", 60))
+                        floor = self.candle_floor.get(sym, self.floor)
+                        lo = max(start, floor)
+                        lo += (-lo) % g
+                        eps = list(range(lo, min(end, self.now) + 1, g))[-count:]
+                        await self._send(ws, {**base, "msg_type": "candles", "candles": [
+                            {"epoch": e, "open": price(sym, e), "high": price(sym, e) * 1.001,
+                             "low": price(sym, e) * 0.999, "close": price(sym, e + g - 1)} for e in eps]})
+                        continue
                     ep = self.epochs(sym, start, end)[-count:]       # latest ticks first, as documented
                     await self._send(ws, {**base, "msg_type": "history", "pip_size": SYMBOLS[sym]["pip"],
                                           "history": {"times": ep, "prices": [price(sym, e) for e in ep]}})

@@ -117,6 +117,13 @@ def cmd_import_mt5(args) -> int:
     return 0
 
 
+def cmd_candles(args) -> int:
+    from .candles import run_candles
+    rep = asyncio.run(run_candles(Path(args.data), hourly_days=args.hourly_days))
+    print("\nSaved to", Path(args.data) / "candles")
+    return 0 if rep.get("symbols") else 1
+
+
 def cmd_audit(args) -> int:
     from .audit import run_audit, summarise
     report = run_audit(Path(args.data), args.day, seal=not args.no_seal)
@@ -207,6 +214,8 @@ def main(argv=None) -> int:
     b = sub.add_parser("backfill", help="download past ticks (resumable; newest first)")
     b.add_argument("--days", type=int, default=90)
     b.add_argument("--per-minute", type=int, default=120, help="request rate cap (Deriv limit is 220)")
+    cd = sub.add_parser("candles", help="Track B: download gold and crypto candle history")
+    cd.add_argument("--hourly-days", type=int, default=730)
     im = sub.add_parser("import-mt5", help="load an mt5_snapshot JSON made on your Windows PC")
     im.add_argument("file")
     sub.add_parser("freeze", help="fix the analysis protocol and start the holdout clock (once)")
@@ -223,4 +232,5 @@ def main(argv=None) -> int:
     return {"probe": cmd_probe, "collect": cmd_collect, "audit": cmd_audit,
             "backfill": cmd_backfill, "status": cmd_status,
             "dashboard-serve": cmd_dashboard_serve, "dashboard-url": cmd_dashboard_url,
-            "freeze": cmd_freeze, "analyze": cmd_analyze, "import-mt5": cmd_import_mt5}[args.cmd](args)
+            "freeze": cmd_freeze, "analyze": cmd_analyze, "import-mt5": cmd_import_mt5,
+            "candles": cmd_candles}[args.cmd](args)

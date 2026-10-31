@@ -28,6 +28,8 @@ dresearch status
 
 Measured false-alarm rate on fair random walks, 200,000 ticks, 40 simulations, Holm 1% per index: 2/120 unrounded, 2/120 at Deriv-level rounding (0.07), 4/120 at heavy rounding (0.5).
 
+**Track B (gold, crypto):** `dresearch candles` downloads daily candles for spot gold, Bitcoin and Ethereum, as far back as Deriv serves them, plus 2 years of hourly candles, into `/var/lib/dresearch/candles/`. The Windows snapshot also reads BTCUSD and ETHUSD and prints the yearly cost of holding each position overnight (swap).
+
 **Update to a new version:** run the same `curl ... | bash` line again. It restarts the collector itself.
 
 **Stop collecting:** `systemctl disable --now dresearch-collector dresearch-audit.timer`

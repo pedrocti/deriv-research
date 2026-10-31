@@ -95,3 +95,17 @@ def test_import_and_dashboard_verdict(tmp_path):
     # spread 1.5/4800.75 = 0.0312%: above break-even at 1, 5, 15 min; below it at 60 min
     assert page.count("no edge</td>") == 3 and page.count("open</td>") == 1
     assert "0.0312%" in page
+
+
+def test_swap_annualised_for_gold_points_mode():
+    # Pedro's real Deriv XAUUSD specs (30 Oct 2026): -45 / +20 points, point 0.01, 100 oz
+    specs = {"swap_mode": 1, "swap_long": -45.0, "swap_short": 20.0, "point": 0.01}
+    sw = snap.swap_annual_pct(specs, 3980.0)
+    assert abs(sw["long_pct_per_year"] - (-45 * 0.01 / 3980 * 100 * 365)) < 1e-9
+    assert round(sw["long_pct_per_year"], 2) == -4.13 and round(sw["short_pct_per_year"], 2) == 1.83
+    assert snap.swap_annual_pct({"swap_mode": 5, "swap_long": -20.0, "swap_short": -15.0}, 1)["long_pct_per_year"] == -20.0
+
+
+def test_crypto_names_match():
+    m = snap.match_symbols(["BTCUSD", "ETHUSD", "BTCUSDT", "XAUUSD"])
+    assert m == {"BTCUSD": "cryBTCUSD", "ETHUSD": "cryETHUSD", "XAUUSD": "frxXAUUSD"}

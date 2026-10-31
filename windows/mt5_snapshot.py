@@ -28,6 +28,8 @@ TARGETS = [
     (re.compile(r"^Volatility (10|25|50|75|100) Index$"), lambda n: f"R_{n}"),
     (re.compile(r"^Volatility (10|25|50|75|100) \(1s\) Index$"), lambda n: f"1HZ{n}V"),
     (re.compile(r"^XAUUSD$"), lambda n: "frxXAUUSD"),
+    (re.compile(r"^(BTC)USD$"), lambda n: "cryBTCUSD"),
+    (re.compile(r"^(ETH)USD$"), lambda n: "cryETHUSD"),
 ]
 SPEC_FIELDS = ["digits", "point", "spread", "spread_float", "trade_tick_size", "trade_tick_value",
                "trade_contract_size", "volume_min", "volume_max", "volume_step", "swap_long",
@@ -64,6 +66,22 @@ def spread_stats(bids, asks) -> dict:
             "share_constant": sp.count(statistics.median(sp)) / len(sp)}
 
 
+def swap_annual_pct(specs: dict, price: float) -> dict | None:
+    """Yearly cost (negative) or credit of holding 1 lot, as % of position value.
+    Handles the swap modes Deriv uses for metals/crypto: points (1) and annual interest (5, 6)."""
+    if not specs or not price:
+        return None
+    mode = specs.get("swap_mode")
+    long_, short_ = specs.get("swap_long"), specs.get("swap_short")
+    if mode == 1 and specs.get("point"):
+        per_night = lambda sw: 100 * sw * specs["point"] / price
+        return {"long_pct_per_year": per_night(long_) * 365, "short_pct_per_year": per_night(short_) * 365,
+                "basis": "points per lot per night x 365 (triple charge mid-week covers weekends)"}
+    if mode in (5, 6):
+        return {"long_pct_per_year": long_, "short_pct_per_year": short_, "basis": "annual interest %"}
+    return {"note": f"swap mode {mode}: not converted", "swap_long": long_, "swap_short": short_}
+
+
 def fields(obj, names) -> dict:
     return {n: getattr(obj, n) for n in names if hasattr(obj, n)}
 
@@ -89,9 +107,10 @@ def run(mt5, minutes: float, out_dir: str = ".") -> dict:
         }
         names = [s.name for s in (mt5.symbols_get() or [])]
         found = match_symbols(names)
-        expected = {f"R_{n}" for n in (10, 25, 50, 75, 100)} | {f"1HZ{n}V" for n in (10, 25, 50, 75, 100)} | {"frxXAUUSD"}
+        expected = ({f"R_{n}" for n in (10, 25, 50, 75, 100)} | {f"1HZ{n}V" for n in (10, 25, 50, 75, 100)}
+                    | {"frxXAUUSD", "cryBTCUSD", "cryETHUSD"})
         report["not_found"] = sorted(expected - set(found.values()))
-        print(f"Account: {report['account']['mode']} on {acc.server}. Found {len(found)} of 11 instruments.")
+        print(f"Account: {report['account']['mode']} on {acc.server}. Found {len(found)} of {len(expected)} instruments.")
         now = datetime.now(timezone.utc)
         offsets = []
         for name, code in sorted(found.items(), key=lambda kv: kv[1]):
@@ -110,6 +129,10 @@ def run(mt5, minutes: float, out_dir: str = ".") -> dict:
                 rec["history_24h"]["last_server_ms"] = last_ms
                 if code.startswith("1HZ"):
                     offsets.append(last_ms / 1000 - time.time())
+                last_mid = (float(sel[-1]["bid"]) + float(sel[-1]["ask"])) / 2
+                rec["last_mid"] = last_mid
+                if code.startswith(("frx", "cry")):
+                    rec["swap_annual"] = swap_annual_pct(rec["specs"], last_mid)
             else:
                 rec["history_24h"] = {"n": 0, "error": str(mt5.last_error())}
             report["symbols"][code] = rec
@@ -149,6 +172,14 @@ def run(mt5, minutes: float, out_dir: str = ".") -> dict:
             pct_txt = f"{pct:.4f}%" if pct is not None else "-"
             med = h.get("median_points")
             print(f"{code:10} {(f'{med:.6g}' if med is not None else '-'):>14} {pct_txt:>11}")
+        holds = {c: r["swap_annual"] for c, r in report["symbols"].items() if r.get("swap_annual")}
+        if holds:
+            print("\nCost of holding a position overnight, per year (negative = you pay):")
+            for c, sw in sorted(holds.items()):
+                if "long_pct_per_year" in sw:
+                    print(f"  {c:10} buy {sw['long_pct_per_year']:+.2f}%   sell {sw['short_pct_per_year']:+.2f}%")
+                else:
+                    print(f"  {c:10} {sw}")
         report["_path"] = path
         return report
     finally:
