@@ -14,7 +14,9 @@ Files, all under <data>/journal/:
 Trade fields: id, created (ISO), market (XAUUSD|ETHUSD), dir (+1 buy, -1 sell), entry, stop, target,
 lots, risk (USD lost if the stop is hit), exitBy, reason, shots [names], planBreaks [text],
 status open|closed; when closed: exit, pnl (USD from MT5, after costs), closedAt, closeBreaks [text],
-note, followed (true if no breaks at all).
+note, followed (true if no breaks at all), exitType stop|target|time|early, and for early exits
+earlyReason invalidated|news|protect|fear|impatient|other plus earlyText (his own words). Closing early
+out of fear or impatience is recorded as a rule break; the other early reasons are not.
 
 The challenge rules (percent of accountSize) are duplicated in the page; keep both in step:
 risk <= 0.5%/trade; one open trade; <= 2 trades/day; stop for the day after 2 losses;
@@ -38,7 +40,8 @@ SHOT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 MAX_SHOT = 6 * 1024 * 1024
 MAX_JSON = 256 * 1024
 TRADE_FIELDS = {"market", "dir", "entry", "stop", "target", "lots", "risk", "exitBy", "reason", "created",
-                "status", "planBreaks", "shots", "exit", "pnl", "closedAt", "closeBreaks", "note", "followed"}
+                "status", "planBreaks", "shots", "exit", "pnl", "closedAt", "closeBreaks", "note", "followed",
+                "exitType", "earlyReason", "earlyText"}
 LAGOS = timezone(timedelta(hours=1))           # Pedro's clock; trading days are counted in it
 
 
@@ -82,7 +85,7 @@ def _clean(doc: dict) -> dict:
     for n in out.get("shots", []):
         if not SHOT_RE.match(n):
             raise ValueError("bad screenshot name")
-    for k in ("reason", "note"):
+    for k in ("reason", "note", "earlyText", "exitType", "earlyReason"):
         if k in out:
             out[k] = str(out[k])[:1000]
     return out
@@ -147,7 +150,8 @@ def shot_path(data: Path, name: str) -> Path | None:
 
 def export_csv(data: Path) -> str:
     cols = ["opened", "closed", "market", "direction", "lots", "entry", "stop", "target", "exit",
-            "risk_usd", "pnl_usd", "R", "rules_kept", "breaks", "reason", "note", "screenshots"]
+            "risk_usd", "pnl_usd", "R", "rules_kept", "breaks", "reason", "note", "screenshots",
+            "exit_type", "early_reason", "early_explanation"]
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(cols)
@@ -159,7 +163,8 @@ def export_csv(data: Path) -> str:
                     round(t.get("risk") or 0, 2), t.get("pnl", ""), round(r, 2) if r != "" else "",
                     ("yes" if t.get("followed") else "no") if closed else "open",
                     "; ".join((t.get("planBreaks") or []) + (t.get("closeBreaks") or [])),
-                    t.get("reason", ""), t.get("note", ""), " ".join(t.get("shots") or [])])
+                    t.get("reason", ""), t.get("note", ""), " ".join(t.get("shots") or []),
+                    t.get("exitType", ""), t.get("earlyReason", ""), t.get("earlyText", "")])
     return buf.getvalue()
 
 
@@ -228,7 +233,13 @@ def summary(st: dict) -> dict:
                           "avg_R": avg([t["pnl"] / t["risk"] for t in v]),
                           "rules_kept_pct": round(100 * sum(bool(t.get("followed")) for t in v) / len(v), 1)}
                       for k, v in sorted(weeks.items())},
-            "common_breaks": sorted(breaks.items(), key=lambda kv: -kv[1])[:8]}
+            "common_breaks": sorted(breaks.items(), key=lambda kv: -kv[1])[:8],
+            "exits": {k: {"n": len(xs), "avg_R": avg([t["pnl"] / t["risk"] for t in xs])}
+                      for k in sorted({t.get("exitType") or "unrecorded" for t in closed})
+                      for xs in [[t for t in closed if (t.get("exitType") or "unrecorded") == k]]},
+            "early_reasons": {k: {"n": len(xs), "avg_R": avg([t["pnl"] / t["risk"] for t in xs])}
+                              for k in sorted({t.get("earlyReason") for t in closed if t.get("exitType") == "early"})
+                              for xs in [[t for t in closed if t.get("exitType") == "early" and t.get("earlyReason") == k]]}}
 
 
 def report(data: Path) -> str:
@@ -247,6 +258,10 @@ def report(data: Path) -> str:
     out.append("weeks (Monday):")
     for k, v in s["weeks"].items():
         out.append(f"  {k}: {v['n']:>3} trades  ${v['pnl']:+9,.2f}  {f(v['avg_R'])}  rules kept {v['rules_kept_pct']}%")
+    if s["exits"]:
+        out.append("how trades ended: " + ", ".join(f"{k} {v['n']} ({f(v['avg_R'])})" for k, v in s["exits"].items()))
+    if s["early_reasons"]:
+        out.append("early closes by reason: " + ", ".join(f"{k} {v['n']} ({f(v['avg_R'])})" for k, v in s["early_reasons"].items()))
     if s["common_breaks"]:
         out.append("most common rule breaks:")
         out += [f"  {n}x  {b}" for b, n in s["common_breaks"]]
@@ -259,6 +274,8 @@ def report(data: Path) -> str:
                    f"{'  BROKE: ' + '; '.join((t.get('planBreaks') or []) + (t.get('closeBreaks') or [])) if not t.get('followed') and t.get('status') == 'closed' else ''}")
         if t.get("reason"):
             out.append(f"      why: {t['reason'][:200]}")
+        if t.get("exitType") == "early":
+            out.append(f"      closed early ({t.get('earlyReason')}): {t.get('earlyText', '')[:200]}")
         if t.get("shots"):
             out.append(f"      screenshots: {', '.join(str(jdir(data) / 'shots' / n) for n in t['shots'])}")
     return "\n".join(out)

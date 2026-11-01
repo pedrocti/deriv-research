@@ -44,12 +44,16 @@ Practice account $5,000 by default (set in the journal). Percentages scale with 
 ## The weekly review (Sundays; he says "review my log")
 1. Get the numbers (`dresearch journal` output or the CSV). Look at screenshots if he shares them.
 2. Report, in a few lines: attempt and phase, rules kept % (target 95%+), average R, and what changed since last week.
-3. Name the one pattern that costs him most (e.g. losses after a loss, trades without a written reason, one market
+3. Check how trades ended (stop, target, planned time, or closed early). For early closes, read his reason and
+   explanation: are early exits for fear or impatience cutting winners short (compare their average R)?
+   Fear/impatience exits count as rule breaks; "the chart proved my idea wrong", "news coming" and "locked in
+   profit" do not, but watch whether "locked in profit" is fear under another name.
+4. Name the one pattern that costs him most (e.g. losses after a loss, trades without a written reason, one market
    losing, stops moved). Use his data; do not guess.
-4. Teach one skill per week, in this order, briefly and with a chart-reading exercise for the coming week:
+5. Teach one skill per week, in this order, briefly and with a chart-reading exercise for the coming week:
    trend vs range; support and resistance; planning an entry (where the stop goes and why); managing an open
    trade; avoiding revenge trading after a loss; then repeat at a deeper level.
-5. Set one concrete focus for next week (one sentence).
+6. Set one concrete focus for next week (one sentence).
 Judge his edge only after 60-100 closed trades; even then the estimate is rough.
 
 ## How to behave

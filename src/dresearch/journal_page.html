@@ -88,6 +88,10 @@ td{font-family:var(--mono);font-variant-numeric:tabular-nums}
 @media (max-width:420px){.row{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (prefers-reduced-motion:no-preference){.meter .fill{transition:width .4s ease}}
 .shots{display:flex;gap:8px;flex-wrap:wrap}.shots img{width:96px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.levels{display:grid;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.92rem}
+.levels .ln{display:grid;gap:1px}.levels .ln b{font:600 .78rem/1.2 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.levels .ln span{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.levels button{justify-self:start;padding:6px 12px;font-size:.9rem}
 a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);border-radius:6px;border:1px solid var(--line);color:var(--ink);padding:11px 14px;text-decoration:none}
 </style>
 </head><body>
@@ -127,7 +131,26 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
       </div>
       <label class="box"><input type="checkbox" id="cStop">My stop-loss was set in MT5 the moment I entered</label>
       <label class="box"><input type="checkbox" id="cWider">I never moved the stop further away</label>
-      <label class="box"><input type="checkbox" id="cExitRule">I closed at my stop, my target, or by my exit time, as planned</label>
+      <label>How did it end?<select id="cHow">
+        <option value="">Choose…</option>
+        <option value="stop">Hit my stop-loss</option>
+        <option value="target">Hit my target</option>
+        <option value="time">Closed at my planned exit time</option>
+        <option value="early">I closed it early, before my stop or target</option>
+      </select></label>
+      <div id="earlyBox" hidden style="display:grid;gap:10px">
+        <label>Main reason for closing early<select id="cWhy">
+          <option value="">Choose…</option>
+          <option value="invalidated">The chart proved my idea wrong (what my plan said would make me wrong happened)</option>
+          <option value="news">Big news was about to come out</option>
+          <option value="protect">Price stalled or turned, so I locked in what I had</option>
+          <option value="fear">I got nervous or afraid of losing</option>
+          <option value="impatient">I got impatient or bored</option>
+          <option value="other">Something else</option>
+        </select></label>
+        <label>Explain in your own words (what you saw, what you felt)<textarea id="cWhyText" maxlength="600"></textarea></label>
+        <p class="hint">Add a screenshot below of the chart at the moment you closed. Closing out of fear or impatience counts as a rule break; the other reasons don't.</p>
+      </div>
       <label>Screenshot after the trade (optional)<input id="cShot" type="file" accept="image/*"></label>
       <label>What happened (one line)<input id="cNote" maxlength="300"></label>
       <button type="submit" id="closeBtn">Close and record</button>
@@ -151,7 +174,8 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
         <label>Size (lots)<input id="pLots" class="num" inputmode="decimal"></label>
         <label>Exit by (latest)<input id="pExitBy" type="datetime-local"></label>
       </div>
-      <p class="hint num" id="sizeHint">Enter entry and stop to see your maximum size.</p>
+      <div id="levels" class="levels" aria-live="polite"><p class="hint">Enter entry and stop to see your stop and target in price, percent and dollars, and your maximum size.</p></div>
+      <button type="button" class="ghost" id="pUseMax" hidden style="justify-self:start;padding:6px 12px;font-size:.9rem">Use maximum size</button>
       <label>Why I am taking this trade<textarea id="pReason" maxlength="600" placeholder="What I see on the chart, and what would prove me wrong"></textarea></label>
       <label>Chart screenshot (enough on its own if you can't put the reason into words)<input id="pShot" type="file" accept="image/*"></label>
       <ul class="checks" id="checks" aria-live="polite"></ul>
@@ -239,7 +263,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
       [!isFinite(risk)||c.bal-risk>L.S-L.max,"If stopped out, total loss stays under "+money(L.max)],
       [c.result==="running","This attempt is still running"]
     ];
-    return{list:out,risk,e,s,g,lots,m,reason,exitBy,rr:sides?Math.abs(g-e)/Math.abs(e-s):NaN};
+    return{list:out,risk,e,s,g,lots,m,reason,exitBy,dir:d,rr:sides?Math.abs(g-e)/Math.abs(e-s):NaN};
   }
 
   function renderPlan(){
@@ -249,10 +273,27 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     $("planBtn").textContent=broken?"Log it anyway (counts as "+broken+" rule break"+(broken>1?"s":"")+")":"Log the plan, then enter in MT5";
     $("planBtn").className=broken?"danger":"";
     $("planBtn").disabled=!state.ok||!!c.open&&false;
-    if(isFinite(p.e)&&isFinite(p.s)&&p.e!==p.s){
-      const per=Math.abs(p.e-p.s)*CS[p.m], maxLots=Math.floor(c.L.risk/per/0.01+1e-9)*0.01;
-      $("sizeHint").textContent=maxLots>=MINLOT[p.m]?"Maximum size for this stop: "+maxLots.toFixed(2)+" lots"+(isFinite(p.rr)?" · reward to risk "+p.rr.toFixed(2):""):"Stop too wide: even "+MINLOT[p.m]+" lots risks "+money(per*MINLOT[p.m])+". Use a closer stop or skip the trade.";
-    } else $("sizeHint").textContent="Enter entry and stop to see your maximum size.";
+    renderLevels(c,p);
+  }
+
+  function renderLevels(c,p){
+    const box=$("levels"); box.textContent=""; $("pUseMax").hidden=true;
+    const line=(title,text,cls)=>{const d=document.createElement("div");d.className="ln";const b=document.createElement("b");b.textContent=title;const s=document.createElement("span");s.textContent=text;if(cls)s.className=cls;d.append(b,s);box.appendChild(d);};
+    if(!(isFinite(p.e)&&isFinite(p.s)&&p.e!==p.s)){const h=document.createElement("p");h.className="hint";h.textContent="Enter entry and stop to see your stop and target in price, percent and dollars, and your maximum size.";box.appendChild(h);return;}
+    const cs=CS[p.m], dec=p.m==="XAUUSD"?2:2, fx=v=>v.toFixed(dec), pct=v=>(v/p.e*100).toFixed(3)+"%";
+    const lots=isFinite(p.lots)&&p.lots>0?p.lots:null, sd=Math.abs(p.e-p.s), side=x=>(x<p.e?"below":"above");
+    const maxLots=Math.floor(c.L.risk/(sd*cs)/0.01+1e-9)*0.01;
+    line("Stop-loss "+fx(p.s),fx(sd)+" "+side(p.s)+" entry ("+pct(sd)+")"+(lots?" · you lose "+money(sd*lots*cs)+" at "+lots+" lots":""),lots&&sd*lots*cs>c.L.risk+1e-9?"neg":"");
+    if(isFinite(p.g)){const gd=Math.abs(p.g-p.e);
+      line("Target "+fx(p.g),fx(gd)+" "+side(p.g)+" entry ("+pct(gd)+")"+(lots?" · you gain "+money(gd*lots*cs):"")+" · reward to risk "+(gd/sd).toFixed(2)+(gd/sd<1?" (less than you risk)":""),gd/sd<1?"neg":"");
+      if(lots){const tgt=c.phase===1?c.L.p1:c.L.p2;line("Effect on the challenge","a win adds "+money(gd*lots*cs)+" = "+Math.round(gd*lots*cs/tgt*100)+"% of the phase "+c.phase+" target; a loss uses "+Math.round(sd*lots*cs/c.L.daily*100)+"% of today's loss room");}}
+    if(maxLots>=MINLOT[p.m]){
+      line("Your size limit","at most "+maxLots.toFixed(2)+" lots with this stop ("+money(c.L.risk)+" risk)");
+      const lim=lots?c.L.risk/(lots*cs):null;
+      if(lim)line("Furthest stop allowed at "+lots+" lots",fx(lim)+" away: "+(p.dir>0?"no lower than ":"no higher than ")+fx(p.dir>0?p.e-lim:p.e+lim));
+      const b=$("pUseMax");b.hidden=false;b.textContent="Use "+maxLots.toFixed(2)+" lots";b.dataset.lots=maxLots.toFixed(2);
+    } else line("Stop too wide","even the minimum "+MINLOT[p.m]+" lots risks "+money(sd*MINLOT[p.m]*cs)+". Move the stop closer or skip this trade.","neg");
+    const m=document.createElement("p");m.className="hint";m.textContent="Type these exact stop-loss and target prices into MT5 when you place the order.";box.appendChild(m);
   }
 
   function renderStatus(c){
@@ -332,6 +373,8 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
       d.append(r1,r2);
       if(breaks.length){const r3=document.createElement("div");r3.className="meta neg";r3.textContent="Broke: "+breaks.join("; ");d.appendChild(r3);}
       if(t.reason){const r4=document.createElement("div");r4.className="meta";r4.textContent="Why: "+t.reason+(t.note?" · After: "+t.note:"");d.appendChild(r4);}
+      if(t.exitType){const r5=document.createElement("div");r5.className="meta";
+        r5.textContent=t.exitType==="early"?"Closed early ("+(WHY[t.earlyReason]||t.earlyReason)+"): "+(t.earlyText||""):{stop:"Hit stop-loss",target:"Hit target",time:"Closed at planned exit time"}[t.exitType]||"";d.appendChild(r5);}
       if(t.shots&&t.shots.length)d.appendChild(shotRow(t.shots));
       const del=document.createElement("button"); del.type="button"; del.className="ghost"; del.style.cssText="justify-self:start;padding:4px 10px;font-size:.8rem"; del.textContent="Delete";
       del.onclick=async()=>{if(del.dataset.armed){del.disabled=true;try{await api.post("delete",{id:t.id});}catch(e){note("Could not delete: "+e.message,"bad");del.disabled=false;}}else{del.dataset.armed="1";del.textContent="Tap again to delete";setTimeout(()=>{delete del.dataset.armed;del.textContent="Delete";},4000);}};
@@ -372,7 +415,9 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
 
   $("pBuy").onclick=()=>{state.dir=1;$("pBuy").setAttribute("aria-pressed","true");$("pSell").setAttribute("aria-pressed","false");renderPlan();};
   $("pSell").onclick=()=>{state.dir=-1;$("pSell").setAttribute("aria-pressed","true");$("pBuy").setAttribute("aria-pressed","false");renderPlan();};
-  ["pMkt","pEntry","pStop","pTarget","pLots","pExitBy","pReason","pShot"].forEach(id=>{$(id).addEventListener("input",renderPlan);$(id).addEventListener("change",renderPlan);});
+  ["pMkt","pEntry","pStop","pTarget","pLots","pExitBy","pReason","pShot"].forEach(id=>$(id).addEventListener("input",renderPlan));
+  ["pMkt","pShot","pExitBy"].forEach(id=>$(id).addEventListener("change",renderPlan));
+  $("pUseMax").onclick=()=>{$("pLots").value=$("pUseMax").dataset.lots||"";renderPlan();};
 
   $("planForm").addEventListener("submit",async ev=>{
     ev.preventDefault(); if(!state.ok)return;
@@ -388,20 +433,32 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     $("planBtn").disabled=false; renderPlan();
   });
 
+  const WHY={invalidated:"chart proved the idea wrong",news:"news coming",protect:"locked in profit",fear:"fear",impatient:"impatience",other:"other"};
+  $("cHow").addEventListener("change",()=>{$("earlyBox").hidden=$("cHow").value!=="early";});
+  $("cExit").addEventListener("input",()=>{
+    const t=challenge().open, x=num($("cExit").value); if(!t||!isFinite(x)||$("cHow").dataset.touched)return;
+    const tol=Math.abs(t.entry-t.stop)*0.15, v=Math.abs(x-t.stop)<=tol?"stop":(t.target!=null&&Math.abs(x-t.target)<=tol)?"target":"";
+    if(v){$("cHow").value=v;$("earlyBox").hidden=true;}
+  });
+  $("cHow").addEventListener("input",()=>{$("cHow").dataset.touched="1";});
   $("closeForm").addEventListener("submit",async ev=>{
     ev.preventDefault(); const c=challenge(), t=c.open; if(!t||!state.ok)return;
     const ex=num($("cExit").value), pnl=num($("cPnl").value);
     if(!isFinite(ex)||!isFinite(pnl)){note("Enter the exit price and the $ result shown in MT5.","bad");return;}
+    const how=$("cHow").value, why=$("cWhy").value, whyText=$("cWhyText").value.trim();
+    if(!how){note("Choose how the trade ended.","bad");return;}
+    if(how==="early"&&(!why||whyText.length<5)){note("You closed early: choose the main reason and explain it in a few words.","bad");return;}
     const cb=[];
     if(!$("cStop").checked)cb.push("stop not set in MT5 at entry");
     if(!$("cWider").checked)cb.push("moved the stop further away");
-    if(!$("cExitRule").checked)cb.push("did not exit as planned");
+    if(how==="early"&&(why==="fear"||why==="impatient"))cb.push("closed early out of "+(why==="fear"?"fear":"impatience"));
     if(t.risk>0&&pnl<-t.risk*1.25)cb.push("lost more than 1.25x the planned risk");
     $("closeBtn").disabled=true;
     try{const shots=(t.shots||[]).slice();if($("cShot").files[0])shots.push(await api.shot($("cShot").files[0]));
       await api.post("update",{id:t.id,patch:{status:"closed",exit:ex,pnl,closedAt:new Date().toISOString(),closeBreaks:cb,note:$("cNote").value.trim(),shots,
+        exitType:how,earlyReason:how==="early"?why:"",earlyText:how==="early"?whyText:"",
         followed:(t.planBreaks||[]).length===0&&cb.length===0}});
-      ["cExit","cPnl","cNote","cShot"].forEach(id=>$(id).value="");["cStop","cWider","cExitRule"].forEach(id=>$(id).checked=false);note("");}
+      ["cExit","cPnl","cNote","cShot"].forEach(id=>$(id).value="");["cStop","cWider"].forEach(id=>$(id).checked=false);["cHow","cWhy","cWhyText"].forEach(id=>$(id).value="");$("earlyBox").hidden=true;note("");}
     catch(e){note("Could not save: "+e.message,"bad");}
     $("closeBtn").disabled=false;
   });

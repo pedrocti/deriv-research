@@ -83,3 +83,13 @@ def test_challenge_phases_fail_and_summary():
     s = J.summary({"settings": {}, "trades": [trade("2026-11-02", 25), trade("2026-11-03", -40, followed=False)]})
     assert s["closed"] == 2 and s["rules_kept_pct"] == 50.0 and s["avg_R_rules_broken"] == pytest.approx(-1.6)
     assert s["common_breaks"][0][1] == 1
+
+
+def test_early_exits_are_summarised_and_exported(tmp_path):
+    t1 = {**trade("2026-11-02", 10), "exitType": "early", "earlyReason": "fear", "earlyText": "got scared", "followed": False,
+          "closeBreaks": ["closed early out of fear"]}
+    t2 = {**trade("2026-11-03", -25), "exitType": "stop"}
+    s = J.summary({"settings": {}, "trades": [t1, t2]})
+    assert s["exits"]["early"]["n"] == 1 and s["early_reasons"]["fear"]["avg_R"] == pytest.approx(0.4)
+    J.apply(tmp_path, "trade", {k: v for k, v in t1.items() if k != "id"})
+    assert "got scared" in J.export_csv(tmp_path) and "closed early (fear)" in J.report(tmp_path)
