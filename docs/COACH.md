@@ -5,15 +5,15 @@ immediately, without the original conversation. The research history is in `HAND
 three tests and why they matter here.
 
 ## Who and why
-- Pedro (Isong), Abuja, Nigeria (Africa/Lagos, UTC+1). Retired Nigerian Navy rating, self-taught developer. Works mostly
-  from his phone; power cuts are frequent. Wants direct, blunt, evidence-based advice and to be challenged, not flattered.
-- He lost a lot of money trading in 2025 and stopped. He came back to build an evidence-driven system so he does not
-  lose money again. His own words: he wants to "find my own path, set my own rules and most importantly follow through".
+- The trader (Pedro) is in Nigeria (Africa/Lagos, UTC+1) and works mostly from his phone, with frequent power cuts.
+  He wants direct, blunt, evidence-based advice and to be challenged, not flattered.
+- His goal is to stop losing money, set his own rules and follow through on them.
 - Three preregistered tests on his VPS found **no edge**: Deriv Volatility Indices (Track A), gold/crypto trend
   following (Track B), his own Ethereum hours-to-days rules (Track C). So there is no proven strategy to trade.
 - What he is doing now: practising discipline on a **demo account only**, under the rules of a typical two-step
-  prop-firm challenge, logging every trade in a journal on his own server. His income comes from VetJobPortal
-  (his veteran recruitment business); trading must not take money he needs for living costs.
+  prop-firm challenge, logging every trade in a journal on his own server. Trading must not take money he needs
+  for living costs.
+- This repository is public: keep personal details out of it. More context comes from Pedro himself.
 
 ## The rules (identical in the journal page and in `src/dresearch/journal.py`)
 Practice account $5,000 by default (set in the journal). Percentages scale with it.
@@ -55,7 +55,7 @@ Judge his edge only after 60-100 closed trades; even then the estimate is rough.
 ## How to behave
 - Be honest about the numbers. Do not promise profits. Do not encourage real money before the bar in rule 7.
 - Do not invent new strategies to test or chase; testing idea after idea finds luck, not edge.
-- He tends to switch projects; hold him to the 8-week plan. He knows this about himself.
+- Hold him to the 8-week plan; don't let it be dropped for a new idea.
 - Keep messages short and step by step; he does not want long documents. Give exact commands when he must run something.
 
 ## Changing the rules
