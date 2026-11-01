@@ -49,6 +49,18 @@ def cmd_dashboard_serve(args) -> int:
     return 0
 
 
+def cmd_journal(args) -> int:
+    from .journal import report
+    print(report(Path(args.data)))
+    return 0
+
+
+def cmd_journal_url(args) -> int:
+    from .dashboard import dashboard_url
+    print(dashboard_url(Path(args.data), args.port) + "journal/")
+    return 0
+
+
 def cmd_dashboard_url(args) -> int:
     from .dashboard import dashboard_url
     print(dashboard_url(Path(args.data), args.port))
@@ -246,8 +258,11 @@ def main(argv=None) -> int:
     z.add_argument("--sims", type=int, default=100)
     z.add_argument("--holdout", action="store_true", help="the one-time test on data after the freeze")
     sub.add_parser("status", help="is it running, and is data arriving?")
-    for name in ("dashboard-serve", "dashboard-url"):
-        d = sub.add_parser(name, help="serve the status page" if name.endswith("serve") else "print the private page link")
+    sub.add_parser("journal", help="demo trading journal: weekly review numbers and recent trades")
+    for name in ("dashboard-serve", "dashboard-url", "journal-url"):
+        d = sub.add_parser(name, help={"dashboard-serve": "serve the status page and the trade journal",
+                                       "dashboard-url": "print the private status page link",
+                                       "journal-url": "print the private trade journal link"}[name])
         d.add_argument("--port", type=int, default=int(os.environ.get("DASHBOARD_PORT", "8787")))
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -256,4 +271,5 @@ def main(argv=None) -> int:
             "dashboard-serve": cmd_dashboard_serve, "dashboard-url": cmd_dashboard_url,
             "freeze": cmd_freeze, "analyze": cmd_analyze, "import-mt5": cmd_import_mt5,
             "candles": cmd_candles, "external": cmd_external,
-            "trend": cmd_trend, "swing": cmd_swing}[args.cmd](args)
+            "trend": cmd_trend, "swing": cmd_swing,
+            "journal": cmd_journal, "journal-url": cmd_journal_url}[args.cmd](args)

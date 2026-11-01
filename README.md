@@ -34,6 +34,8 @@ Measured false-alarm rate on fair random walks, 200,000 ticks, 40 simulations, H
 
 **Track C test:** `dresearch swing` runs the preregistered Ethereum hours-to-days test sized for a $100 account (rules: docstring of `src/dresearch/swing.py`, committed before any result). Needs the hourly data from `dresearch external`.
 
+**Demo journal:** `dresearch journal-url` prints the private link to the trade journal (served by the status page service); `dresearch journal` prints the weekly review numbers. Coaching handoff: `docs/COACH.md`.
+
 **Update to a new version:** run the same `curl ... | bash` line again. It restarts the collector itself.
 
 **Stop collecting:** `systemctl disable --now dresearch-collector dresearch-audit.timer`

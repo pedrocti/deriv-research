@@ -469,7 +469,7 @@ def make_server(data: Path, host: str = "0.0.0.0", port: int = 8787) -> Threadin
         def log_message(self, *a):
             pass
 
-        def _send(self, code: int, body: bytes, ctype: str = "text/plain; charset=utf-8", extra=None):
+        def _send(self, code: int, body: bytes, ctype: str = "text/plain; charset=utf-8", extra=None, csp=None):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
@@ -478,7 +478,7 @@ def make_server(data: Path, host: str = "0.0.0.0", port: int = 8787) -> Threadin
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("X-Frame-Options", "DENY")
-            self.send_header("Content-Security-Policy",
+            self.send_header("Content-Security-Policy", csp or
                              "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; "
                              "font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'")
             for k, v in (extra or {}).items():
@@ -487,8 +487,50 @@ def make_server(data: Path, host: str = "0.0.0.0", port: int = 8787) -> Threadin
             if self.command != "HEAD":
                 self.wfile.write(body)
 
+        def _journal(self, method: str, sub: str):
+            from . import journal as J
+            jcsp = ("default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; "
+                    "font-src https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self'; "
+                    "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+            try:
+                if method == "GET":
+                    if sub == "":
+                        page = (Path(__file__).with_name("journal_page.html")).read_bytes()
+                        return self._send(200, page, "text/html; charset=utf-8", csp=jcsp)
+                    if sub == "api/state":
+                        return self._send(200, json.dumps(J.state(data)).encode(), "application/json")
+                    if sub == "export.csv":
+                        name = "trade-log-" + time.strftime("%Y-%m-%d") + ".csv"
+                        return self._send(200, J.export_csv(data).encode("utf-8"), "text/csv; charset=utf-8",
+                                          extra={"Content-Disposition": f'attachment; filename="{name}"'})
+                    if sub.startswith("shots/"):
+                        p = J.shot_path(data, sub[6:])
+                        if p:
+                            ext = p.suffix[1:]
+                            ctype = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext]
+                            return self._send(200, p.read_bytes(), ctype)
+                    return self._send(404, b"Not found\n")
+                n = int(self.headers.get("Content-Length") or 0)
+                if sub == "api/shot":
+                    if n <= 0 or n > J.MAX_SHOT:
+                        return self._send(413, b"Screenshot is empty or over 6 MB")
+                    name = J.save_shot(data, self.headers.get("Content-Type", ""), self.rfile.read(n))
+                    return self._send(200, json.dumps({"name": name}).encode(), "application/json")
+                if sub.startswith("api/") and sub[4:] in ("trade", "update", "delete", "settings"):
+                    if n <= 0 or n > J.MAX_JSON:
+                        return self._send(413, b"Request too large")
+                    res = J.apply(data, sub[4:], json.loads(self.rfile.read(n)))
+                    return self._send(200, json.dumps(res).encode(), "application/json")
+                return self._send(404, b"Not found\n")
+            except (ValueError, KeyError) as exc:
+                return self._send(400, str(exc).strip("'").encode())
+
         def do_GET(self):
             path = self.path.split("?", 1)[0]
+            if path == f"/{token}/journal":
+                return self._send(301, b"", extra={"Location": f"/{token}/journal/"})
+            if path.startswith(f"/{token}/journal/"):
+                return self._journal("GET", path[len(f"/{token}/journal/"):])
             if path == f"/{token}":
                 return self._send(301, b"", extra={"Location": f"/{token}/"})
             if path != f"/{token}/":
@@ -506,6 +548,9 @@ def make_server(data: Path, host: str = "0.0.0.0", port: int = 8787) -> Threadin
         do_HEAD = do_GET
 
         def do_POST(self):
+            path = self.path.split("?", 1)[0]
+            if path.startswith(f"/{token}/journal/"):
+                return self._journal("POST", path[len(f"/{token}/journal/"):])
             self._send(405, b"Read-only\n")
 
     return ThreadingHTTPServer((host, port), Handler)

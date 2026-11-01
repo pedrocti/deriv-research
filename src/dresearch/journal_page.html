@@ -1,0 +1,453 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Challenge Trade Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow column, phone first. Status band, then plan, open trade, history, numbers. */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#14212e; --muted:#5b6876; --line:#d4dbe2;
+  --brass:#a8741a; --brass-soft:#f3e6cc; --good:#1d7a4a; --good-soft:#dcefe3; --bad:#b3261e; --bad-soft:#f7dedb;
+  --warn:#8a5a00; --bar:#e2e7ec;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1720; --panel:#16212c; --ink:#e4eaf0; --muted:#97a5b3; --line:#2a3846;
+  --brass:#e0b05a; --brass-soft:#3a2f1a; --good:#5cc98d; --good-soft:#173527; --bad:#f08a80; --bad-soft:#3d1f1d;
+  --warn:#e6b450; --bar:#24313e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1720; --panel:#16212c; --ink:#e4eaf0; --muted:#97a5b3; --line:#2a3846;
+  --brass:#e0b05a; --brass-soft:#3a2f1a; --good:#5cc98d; --good-soft:#173527; --bad:#f08a80; --bad-soft:#3d1f1d;
+  --warn:#e6b450; --bar:#24313e; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+img{max-width:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+main{max-width:640px;margin:0 auto;display:grid;gap:18px}
+h1,h2{font-family:var(--display);font-weight:700;letter-spacing:.01em;margin:0;text-wrap:balance}
+h1{font-size:2rem;line-height:1.05}
+h2{font-size:1.35rem}
+.eyebrow{font:600 .72rem/1 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px;min-width:0}
+header.top{display:grid;gap:6px}
+.banner{border-radius:8px;padding:10px 12px;font-size:.95rem}
+.banner.info{background:var(--brass-soft)}
+.banner.bad{background:var(--bad-soft);color:var(--bad)}
+.banner.good{background:var(--good-soft);color:var(--good)}
+.status{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.stat{display:grid;gap:2px;min-width:0}
+.stat b{font:600 1.35rem/1.1 var(--mono);font-variant-numeric:tabular-nums}
+.stat small{color:var(--muted);font-size:.82rem}
+.meter{display:grid;gap:4px}
+.meter .track{height:8px;border-radius:4px;background:var(--bar);overflow:hidden}
+.meter .fill{height:100%;background:var(--brass)}
+.meter .fill.good{background:var(--good)} .meter .fill.bad{background:var(--bad)}
+.meter .lab{display:flex;justify-content:space-between;gap:8px;font-size:.85rem;color:var(--muted)}
+.pill{display:inline-block;font:600 .75rem/1 var(--body);letter-spacing:.06em;text-transform:uppercase;padding:5px 8px;border-radius:999px;background:var(--brass-soft);color:var(--brass)}
+.pill.good{background:var(--good-soft);color:var(--good)} .pill.bad{background:var(--bad-soft);color:var(--bad)}
+form{display:grid;gap:10px}
+.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.row.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+label{display:grid;gap:4px;font-size:.85rem;color:var(--muted);min-width:0}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px;width:100%;min-width:0}
+input.num{font-family:var(--mono)}
+textarea{min-height:64px;resize:vertical}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--brass);outline-offset:1px}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:var(--bg);color:var(--muted);padding:9px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+button{font:600 1rem var(--body);border-radius:6px;border:1px solid var(--ink);background:var(--ink);color:var(--panel);padding:11px 14px;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+button.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+button:disabled{opacity:.5;cursor:not-allowed}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.checks li{display:grid;grid-template-columns:20px 1fr;gap:8px;font-size:.92rem}
+.checks li::before{content:"✓";font-weight:700;color:var(--good)}
+.checks li.no::before{content:"✕";color:var(--bad)}
+.checks li.no{color:var(--bad)}
+.hint{font-size:.85rem;color:var(--muted);margin:0}
+.box{display:flex;gap:8px;align-items:flex-start;font-size:.95rem;color:var(--ink)}
+.box input{width:auto;margin-top:3px}
+.trade{border-top:1px solid var(--line);padding-top:10px;display:grid;gap:4px}
+.trade:first-child{border-top:0;padding-top:0}
+.trade .t1{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.trade .meta{font-size:.85rem;color:var(--muted)}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:600;color:var(--muted);font-size:.78rem;letter-spacing:.05em;text-transform:uppercase}
+td{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.rules{margin:0;padding-left:20px;display:grid;gap:4px;font-size:.92rem}
+.inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media (max-width:420px){.row{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (prefers-reduced-motion:no-preference){.meter .fill{transition:width .4s ease}}
+.shots{display:flex;gap:8px;flex-wrap:wrap}.shots img{width:96px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);border-radius:6px;border:1px solid var(--line);color:var(--ink);padding:11px 14px;text-decoration:none}
+</style>
+</head><body>
+
+<main>
+  <header class="top">
+    <span class="eyebrow">Demo practice · two-step challenge rules</span>
+    <h1>Challenge Trade Log</h1>
+    <p class="hint">Write the plan before you click in MT5. The log checks it against your rules and records every break.</p>
+  </header>
+
+  <div id="storeNote" class="banner info">Loading your log…</div>
+
+  <section id="statusSec" aria-labelledby="statusH">
+    <div class="inline" style="justify-content:space-between">
+      <h2 id="statusH">Attempt <span id="attemptNo" class="num">1</span></h2>
+      <span id="phasePill" class="pill">Phase 1</span>
+    </div>
+    <div id="attemptBanner" hidden></div>
+    <div class="status">
+      <div class="stat"><small>Balance</small><b id="bal">$5,000.00</b></div>
+      <div class="stat"><small>Trading days this phase</small><b id="days">0 / 4</b></div>
+    </div>
+    <div class="meter"><div class="lab"><span>Progress to target</span><span id="tgtLab" class="num">$0 of $400</span></div><div class="track"><div id="tgtFill" class="fill good" style="width:0%"></div></div></div>
+    <div class="meter"><div class="lab"><span>Loss room left today</span><span id="dayLab" class="num">$250 of $250</span></div><div class="track"><div id="dayFill" class="fill" style="width:100%"></div></div></div>
+    <div class="meter"><div class="lab"><span>Loss room left in total</span><span id="totLab" class="num">$500 of $500</span></div><div class="track"><div id="totFill" class="fill" style="width:100%"></div></div></div>
+    <p class="hint" id="streak">Passed attempts in a row: 0 of 2 needed before paying for a real challenge.</p>
+  </section>
+
+  <section id="openSec" aria-labelledby="openH" hidden>
+    <h2 id="openH">Open trade</h2>
+    <div id="openInfo"></div>
+    <form id="closeForm">
+      <div class="row two">
+        <label>Exit price<input id="cExit" class="num" inputmode="decimal" required></label>
+        <label>Result in $ from MT5 (after costs)<input id="cPnl" class="num" inputmode="decimal" placeholder="e.g. -24.80" required></label>
+      </div>
+      <label class="box"><input type="checkbox" id="cStop">My stop-loss was set in MT5 the moment I entered</label>
+      <label class="box"><input type="checkbox" id="cWider">I never moved the stop further away</label>
+      <label class="box"><input type="checkbox" id="cExitRule">I closed at my stop, my target, or by my exit time, as planned</label>
+      <label>Screenshot after the trade (optional)<input id="cShot" type="file" accept="image/*"></label>
+      <label>What happened (one line)<input id="cNote" maxlength="300"></label>
+      <button type="submit" id="closeBtn">Close and record</button>
+    </form>
+  </section>
+
+  <section id="planSec" aria-labelledby="planH">
+    <h2 id="planH">Plan a trade</h2>
+    <form id="planForm">
+      <div class="row two">
+        <label>Market<select id="pMkt"><option value="XAUUSD">Gold (XAUUSD)</option><option value="ETHUSD">Ethereum (ETHUSD)</option></select></label>
+        <div style="display:grid;gap:4px"><span class="hint">Direction</span>
+          <div class="seg" role="group" aria-label="Direction"><button type="button" id="pBuy" aria-pressed="true">Buy</button><button type="button" id="pSell" aria-pressed="false">Sell</button></div></div>
+      </div>
+      <div class="row">
+        <label>Entry<input id="pEntry" class="num" inputmode="decimal"></label>
+        <label>Stop-loss<input id="pStop" class="num" inputmode="decimal"></label>
+        <label>Target<input id="pTarget" class="num" inputmode="decimal"></label>
+      </div>
+      <div class="row two">
+        <label>Size (lots)<input id="pLots" class="num" inputmode="decimal"></label>
+        <label>Exit by (latest)<input id="pExitBy" type="datetime-local"></label>
+      </div>
+      <p class="hint num" id="sizeHint">Enter entry and stop to see your maximum size.</p>
+      <label>Why I am taking this trade<textarea id="pReason" maxlength="600" placeholder="What I see on the chart, and what would prove me wrong"></textarea></label>
+      <label>Chart screenshot (enough on its own if you can't put the reason into words)<input id="pShot" type="file" accept="image/*"></label>
+      <ul class="checks" id="checks" aria-live="polite"></ul>
+      <button type="submit" id="planBtn">Log the plan, then enter in MT5</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="numH">
+    <h2 id="numH">Your numbers</h2>
+    <div class="status" id="numbers"></div>
+    <div class="tablewrap"><table id="weeks"><thead><tr><th>Week of</th><th>Trades</th><th>P&amp;L</th><th>Avg R</th><th>Rules kept</th></tr></thead><tbody></tbody></table></div>
+    <p class="hint">R is the result divided by the amount you risked. +1R means you made what you risked; −1R means you lost it.</p>
+  </section>
+
+  <section aria-labelledby="histH">
+    <h2 id="histH">History</h2>
+    <div id="history"><p class="hint">No closed trades yet. Your first one will appear here.</p></div>
+  </section>
+
+  <section aria-labelledby="rulesH">
+    <h2 id="rulesH">The rules</h2>
+    <ol class="rules" id="rulesList"></ol>
+    <form id="setForm" class="inline">
+      <label style="flex:1 1 180px">Practice account size ($)<input id="sSize" class="num" inputmode="decimal"></label>
+      <button type="submit" class="ghost" id="sBtn">Save size</button>
+    </form>
+    <p class="hint" id="sizeNote">You can change the size only before the first trade of an attempt.</p>
+  </section>
+
+  <section aria-labelledby="bkH">
+    <h2 id="bkH">Your copy</h2>
+    <p class="hint">Your trades and screenshots are saved on your own server (your VPS), not with Claude, so they stay even without a Claude subscription. Download a spare copy every Sunday; it opens in Excel or Google Sheets.</p>
+    <a class="btnlink" href="export.csv">Download my log (CSV)</a>
+  </section>
+</main>
+
+<script>
+(function(){
+  const CS={XAUUSD:100,ETHUSD:1}, MINLOT={XAUUSD:0.01,ETHUSD:0.1};
+  const MAX_TRADES_DAY=2, MAX_LOSSES_DAY=2, MIN_DAYS=4;
+  const state={settings:{accountSize:5000,attemptStartedAt:"1970-01-01T00:00:00.000Z",attempts:[]},trades:[],dir:1,db:null,ok:false};
+  const $=id=>document.getElementById(id);
+  const money=(v,sign)=>{const s=(sign&&v>0?"+":"")+(v<0?"−":"")+"$"+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});return s;};
+  const num=v=>{const x=parseFloat(String(v).replace(/,/g,""));return isFinite(x)?x:NaN;};
+  const localDate=d=>{d=new Date(d);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+  const lim=()=>{const S=state.settings.accountSize||5000;return{S,risk:S*0.005,daily:S*0.05,max:S*0.10,p1:S*0.08,p2:S*0.05};};
+
+  function challenge(){
+    const L=lim(), start=state.settings.attemptStartedAt||"1970";
+    const mine=state.trades.filter(t=>t.created>=start);
+    const closed=mine.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?-1:1);
+    let bal=L.S, phase=1, phaseStart=L.S, days=new Set(), daily={}, result="running", reason="";
+    for(const t of closed){
+      bal+=t.pnl; const cd=localDate(t.closedAt); daily[cd]=(daily[cd]||0)+t.pnl; days.add(localDate(t.created));
+      if(daily[cd]<=-L.daily){result="failed";reason="Lost "+money(L.daily)+" or more in one day ("+cd+").";break;}
+      if(bal<=L.S-L.max){result="failed";reason="Total loss reached "+money(L.max)+".";break;}
+      if(phase===1&&bal-phaseStart>=L.p1&&days.size>=MIN_DAYS){phase=2;phaseStart=bal;days=new Set();}
+      else if(phase===2&&bal-phaseStart>=L.p2&&days.size>=MIN_DAYS){result="passed";break;}
+    }
+    for(const t of mine) if(t.status==="open") days.add(localDate(t.created));
+    const today=localDate(new Date());
+    const todayClosed=closed.filter(t=>localDate(t.closedAt)===today);
+    return{L,bal,phase,phaseStart,days:days.size,result,reason,
+      todayPnl:todayClosed.reduce((a,t)=>a+t.pnl,0),
+      todayLosses:todayClosed.filter(t=>t.pnl<0).length,
+      todayCount:mine.filter(t=>localDate(t.created)===today).length,
+      open:mine.find(t=>t.status==="open")||state.trades.find(t=>t.status==="open")};
+  }
+
+  function planChecks(c){
+    const m=$("pMkt").value, e=num($("pEntry").value), s=num($("pStop").value), g=num($("pTarget").value), lots=num($("pLots").value);
+    const reason=$("pReason").value.trim(), exitBy=$("pExitBy").value, d=state.dir, L=c.L;
+    const filled=isFinite(e)&&isFinite(s)&&isFinite(g)&&isFinite(lots)&&lots>0&&(reason.length>=10||$("pShot").files.length>0)&&exitBy;
+    const sides=isFinite(e)&&isFinite(s)&&isFinite(g)&&(d>0?(s<e&&g>e):(s>e&&g<e));
+    const risk=(isFinite(e)&&isFinite(s)&&isFinite(lots))?Math.abs(e-s)*lots*CS[m]:NaN;
+    const out=[
+      [filled,"Plan written: entry, stop, target, size, exit time, and a reason or a screenshot"],
+      [sides,"Stop is on the losing side and target on the winning side"],
+      [isFinite(risk)&&risk<=L.risk+1e-9,"Risk "+(isFinite(risk)?money(risk):"$?")+" is within "+money(L.risk)+" (0.5% of the account)"],
+      [isFinite(lots)&&lots>=MINLOT[m]-1e-9,"Size is at least the minimum "+MINLOT[m]+" lots"],
+      [!c.open,"No other trade is open"],
+      [c.todayCount<MAX_TRADES_DAY,"Fewer than "+MAX_TRADES_DAY+" trades today ("+c.todayCount+" so far)"],
+      [c.todayLosses<MAX_LOSSES_DAY,"Fewer than "+MAX_LOSSES_DAY+" losses today"],
+      [!isFinite(risk)||c.todayPnl-risk>-L.daily,"If stopped out, today's loss stays under "+money(L.daily)],
+      [!isFinite(risk)||c.bal-risk>L.S-L.max,"If stopped out, total loss stays under "+money(L.max)],
+      [c.result==="running","This attempt is still running"]
+    ];
+    return{list:out,risk,e,s,g,lots,m,reason,exitBy,rr:sides?Math.abs(g-e)/Math.abs(e-s):NaN};
+  }
+
+  function renderPlan(){
+    const c=challenge(), p=planChecks(c), ul=$("checks"); ul.textContent="";
+    for(const [ok,txt] of p.list){const li=document.createElement("li");li.textContent=txt;if(!ok)li.className="no";ul.appendChild(li);}
+    const broken=p.list.filter(x=>!x[0]).length;
+    $("planBtn").textContent=broken?"Log it anyway (counts as "+broken+" rule break"+(broken>1?"s":"")+")":"Log the plan, then enter in MT5";
+    $("planBtn").className=broken?"danger":"";
+    $("planBtn").disabled=!state.ok||!!c.open&&false;
+    if(isFinite(p.e)&&isFinite(p.s)&&p.e!==p.s){
+      const per=Math.abs(p.e-p.s)*CS[p.m], maxLots=Math.floor(c.L.risk/per/0.01+1e-9)*0.01;
+      $("sizeHint").textContent=maxLots>=MINLOT[p.m]?"Maximum size for this stop: "+maxLots.toFixed(2)+" lots"+(isFinite(p.rr)?" · reward to risk "+p.rr.toFixed(2):""):"Stop too wide: even "+MINLOT[p.m]+" lots risks "+money(per*MINLOT[p.m])+". Use a closer stop or skip the trade.";
+    } else $("sizeHint").textContent="Enter entry and stop to see your maximum size.";
+  }
+
+  function renderStatus(c){
+    const L=c.L, tgt=c.phase===1?L.p1:L.p2, prog=c.bal-c.phaseStart;
+    $("attemptNo").textContent=(state.settings.attempts||[]).length+1;
+    const pill=$("phasePill");
+    pill.textContent=c.result==="passed"?"Passed":c.result==="failed"?"Failed":"Phase "+c.phase; pill.className="pill"+(c.result==="passed"?" good":c.result==="failed"?" bad":"");
+    $("bal").textContent=money(c.bal);
+    $("days").textContent=c.days+" / "+MIN_DAYS;
+    $("tgtLab").textContent=money(Math.max(0,prog))+" of "+money(tgt);
+    $("tgtFill").style.width=Math.max(0,Math.min(100,prog/tgt*100))+"%";
+    const dayLeft=Math.max(0,L.daily+Math.min(0,c.todayPnl)), totLeft=Math.max(0,c.bal-(L.S-L.max));
+    $("dayLab").textContent=money(dayLeft)+" of "+money(L.daily); $("dayFill").style.width=(dayLeft/L.daily*100)+"%"; $("dayFill").className="fill"+(dayLeft<L.daily*0.4?" bad":"");
+    $("totLab").textContent=money(Math.min(totLeft,L.max))+" of "+money(L.max); $("totFill").style.width=Math.min(100,totLeft/L.max*100)+"%"; $("totFill").className="fill"+(totLeft<L.max*0.4?" bad":"");
+    const b=$("attemptBanner"); b.textContent="";
+    if(c.result!=="running"){
+      b.hidden=false; b.className="banner "+(c.result==="passed"?"good":"bad");
+      const p=document.createElement("p"); p.style.margin="0 0 8px";
+      p.textContent=c.result==="passed"?"You passed both phases on this attempt.":"This attempt failed. "+c.reason+" A real firm would close the account here.";
+      const btn=document.createElement("button"); btn.type="button"; btn.textContent="Start a new attempt"; btn.disabled=!state.ok;
+      btn.onclick=()=>newAttempt(c.result);
+      b.append(p,btn);
+    } else b.hidden=true;
+    const at=state.settings.attempts||[]; let k=0; for(let i=at.length-1;i>=0&&at[i].result==="passed";i--)k++;
+    $("streak").textContent=k>=2?"Passed "+k+" attempts in a row. You have met the bar to consider a paid challenge. Check the firm's rules with Claude first.":"Passed attempts in a row: "+k+" of 2 needed before paying for a real challenge.";
+  }
+
+  function renderOpen(c){
+    const t=c.open, sec=$("openSec"); sec.hidden=!t; if(!t)return;
+    const box=$("openInfo"); box.textContent="";
+    const l1=document.createElement("div"); l1.className="num";
+    l1.textContent=(t.dir>0?"BUY ":"SELL ")+t.market+" "+t.lots+" lots @ "+t.entry+" · stop "+t.stop+" · target "+t.target;
+    const l2=document.createElement("div"); l2.className="hint";
+    l2.textContent="Risk "+money(t.risk)+" · exit by "+(t.exitBy?new Date(t.exitBy).toLocaleString():"?")+(t.planBreaks&&t.planBreaks.length?" · "+t.planBreaks.length+" rule break(s) at entry":"");
+    const l3=document.createElement("div"); l3.className="hint"; l3.textContent="Reason: "+(t.reason||"see screenshot");
+    box.append(l1,l2,l3);
+    if(t.shots&&t.shots.length)box.appendChild(shotRow(t.shots));
+  }
+
+  function renderNumbers(){
+    const closed=state.trades.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?-1:1);
+    const n=closed.length, kept=closed.filter(t=>t.followed).length, wins=closed.filter(t=>t.pnl>0).length;
+    const R=closed.map(t=>t.risk>0?t.pnl/t.risk:0), sum=closed.reduce((a,t)=>a+t.pnl,0);
+    const avgR=n?R.reduce((a,b)=>a+b,0)/n:0;
+    const keptR=closed.filter(t=>t.followed).map(t=>t.pnl/t.risk), brokeR=closed.filter(t=>!t.followed).map(t=>t.pnl/t.risk);
+    const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:NaN;
+    const items=[["Closed trades",String(n),n<60?"aim for 60 to 100 before judging":"enough to start judging"],
+      ["Rules kept",n?Math.round(kept/n*100)+"%":"–","target 95% or more"],
+      ["Win rate",n?Math.round(wins/n*100)+"%":"–",wins+" winners"],
+      ["Average R",n?(avgR>=0?"+":"")+avgR.toFixed(2)+"R":"–","per trade, after costs"],
+      ["Total P&L",money(sum,true),"all attempts"],
+      ["Kept vs broke",(isFinite(avg(keptR))?avg(keptR).toFixed(2):"–")+" / "+(isFinite(avg(brokeR))?avg(brokeR).toFixed(2):"–"),"average R when rules kept / broken"]];
+    const box=$("numbers"); box.textContent="";
+    for(const [k,v,s] of items){const d=document.createElement("div");d.className="stat";const a=document.createElement("small");a.textContent=k;const b=document.createElement("b");b.textContent=v;const c=document.createElement("small");c.textContent=s;d.append(a,b,c);box.appendChild(d);}
+    const weeks={};
+    for(const t of closed){const d=new Date(t.closedAt);const m=new Date(d);m.setDate(d.getDate()-((d.getDay()+6)%7));const k=localDate(m);(weeks[k]=weeks[k]||[]).push(t);}
+    const tb=$("weeks").tBodies[0]; tb.textContent="";
+    const keys=Object.keys(weeks).sort().reverse();
+    if(!keys.length){const tr=tb.insertRow();const td=tr.insertCell();td.colSpan=5;td.textContent="No weeks yet";td.style.textAlign="left";}
+    for(const k of keys){const w=weeks[k],tr=tb.insertRow();const p=w.reduce((a,t)=>a+t.pnl,0);
+      [k,w.length,money(p,true),(avg(w.map(t=>t.pnl/t.risk))>=0?"+":"")+avg(w.map(t=>t.pnl/t.risk)).toFixed(2),Math.round(w.filter(t=>t.followed).length/w.length*100)+"%"].forEach((v,i)=>{const td=tr.insertCell();td.textContent=v;if(i===2)td.className=p>=0?"pos":"neg";});}
+  }
+
+  function renderHistory(){
+    const closed=state.trades.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?1:-1);
+    const box=$("history"); box.textContent="";
+    if(!closed.length){const p=document.createElement("p");p.className="hint";p.textContent="No closed trades yet. Your first one will appear here.";box.appendChild(p);return;}
+    for(const t of closed.slice(0,60)){
+      const d=document.createElement("div"); d.className="trade";
+      const r1=document.createElement("div"); r1.className="t1";
+      const a=document.createElement("strong"); a.textContent=(t.dir>0?"Buy ":"Sell ")+t.market;
+      const b=document.createElement("span"); b.className="num "+(t.pnl>=0?"pos":"neg"); b.textContent=money(t.pnl,true)+" · "+(t.pnl/t.risk>=0?"+":"")+(t.pnl/t.risk).toFixed(2)+"R";
+      r1.append(a,b);
+      const r2=document.createElement("div"); r2.className="meta";
+      const breaks=(t.planBreaks||[]).concat(t.closeBreaks||[]);
+      r2.textContent=new Date(t.created).toLocaleString()+" · "+t.lots+" lots @ "+t.entry+" → "+t.exit+(breaks.length?"":" · rules kept");
+      d.append(r1,r2);
+      if(breaks.length){const r3=document.createElement("div");r3.className="meta neg";r3.textContent="Broke: "+breaks.join("; ");d.appendChild(r3);}
+      if(t.reason){const r4=document.createElement("div");r4.className="meta";r4.textContent="Why: "+t.reason+(t.note?" · After: "+t.note:"");d.appendChild(r4);}
+      if(t.shots&&t.shots.length)d.appendChild(shotRow(t.shots));
+      const del=document.createElement("button"); del.type="button"; del.className="ghost"; del.style.cssText="justify-self:start;padding:4px 10px;font-size:.8rem"; del.textContent="Delete";
+      del.onclick=async()=>{if(del.dataset.armed){del.disabled=true;try{await api.post("delete",{id:t.id});}catch(e){note("Could not delete: "+e.message,"bad");del.disabled=false;}}else{del.dataset.armed="1";del.textContent="Tap again to delete";setTimeout(()=>{delete del.dataset.armed;del.textContent="Delete";},4000);}};
+      if(state.ok)d.appendChild(del);
+      box.appendChild(d);
+    }
+  }
+
+  function renderRules(){
+    const L=lim(), ol=$("rulesList"); ol.textContent="";
+    ["Trade only gold (XAUUSD) or Ethereum (ETHUSD) on the demo account.",
+     "Write the full plan here before entering: entry, stop, target, size, latest exit time and the reason.",
+     "Risk at most "+money(L.risk)+" per trade (0.5%). Set the stop in MT5 the moment you enter.",
+     "Move the stop closer if you like, never further away.",
+     "One trade open at a time. At most "+MAX_TRADES_DAY+" trades a day. Stop for the day after "+MAX_LOSSES_DAY+" losses.",
+     "Phase 1 target: +"+money(L.p1)+" (8%). Phase 2 target: +"+money(L.p2)+" (5%). At least "+MIN_DAYS+" trading days in each phase.",
+     "The attempt fails if you lose "+money(L.daily)+" in one day (5%) or "+money(L.max)+" in total (10%).",
+     "Pay for a real challenge only after passing twice in a row with 95% of trades keeping the rules."
+    ].forEach(r=>{const li=document.createElement("li");li.textContent=r;ol.appendChild(li);});
+    $("sSize").value=L.S;
+  }
+
+  function render(){const c=challenge();renderStatus(c);renderOpen(c);renderPlan();renderNumbers();renderHistory();renderRules();
+    const started=state.trades.some(t=>t.created>=(state.settings.attemptStartedAt||"1970"));
+    $("sSize").disabled=started||!state.ok; $("sBtn").disabled=started||!state.ok;}
+
+  function note(msg,kind){const n=$("storeNote");n.hidden=!msg;n.textContent=msg||"";n.className="banner "+(kind||"info");}
+
+  async function saveSettings(patch){
+    const next=Object.assign({},state.settings,patch);
+    await api.post("settings",next);
+  }
+  async function newAttempt(result){
+    const now=new Date().toISOString();
+    const at=(state.settings.attempts||[]).concat([{startedAt:state.settings.attemptStartedAt,endedAt:now,result}]);
+    try{await saveSettings({attempts:at,attemptStartedAt:now});}catch(e){note("Could not start a new attempt: "+e.message,"bad");}
+  }
+
+  $("pBuy").onclick=()=>{state.dir=1;$("pBuy").setAttribute("aria-pressed","true");$("pSell").setAttribute("aria-pressed","false");renderPlan();};
+  $("pSell").onclick=()=>{state.dir=-1;$("pSell").setAttribute("aria-pressed","true");$("pBuy").setAttribute("aria-pressed","false");renderPlan();};
+  ["pMkt","pEntry","pStop","pTarget","pLots","pExitBy","pReason","pShot"].forEach(id=>{$(id).addEventListener("input",renderPlan);$(id).addEventListener("change",renderPlan);});
+
+  $("planForm").addEventListener("submit",async ev=>{
+    ev.preventDefault(); if(!state.ok)return;
+    const c=challenge(), p=planChecks(c);
+    if(!(isFinite(p.e)&&isFinite(p.s)&&isFinite(p.lots)&&p.lots>0)){note("Enter at least entry, stop and size so the risk can be recorded.","bad");return;}
+    const doc={market:p.m,dir:state.dir,entry:p.e,stop:p.s,target:isFinite(p.g)?p.g:null,lots:p.lots,risk:Math.abs(p.e-p.s)*p.lots*CS[p.m],
+      exitBy:p.exitBy?new Date(p.exitBy).toISOString():null,reason:p.reason,created:new Date().toISOString(),status:"open",
+      planBreaks:p.list.filter(x=>!x[0]).map(x=>x[1]),shots:[]};
+    $("planBtn").disabled=true;
+    try{if($("pShot").files[0])doc.shots.push(await api.shot($("pShot").files[0]));
+      await api.post("trade",doc);["pEntry","pStop","pTarget","pLots","pExitBy","pReason","pShot"].forEach(id=>$(id).value="");note("");}
+    catch(e){note("Could not save: "+e.message,"bad");}
+    $("planBtn").disabled=false; renderPlan();
+  });
+
+  $("closeForm").addEventListener("submit",async ev=>{
+    ev.preventDefault(); const c=challenge(), t=c.open; if(!t||!state.ok)return;
+    const ex=num($("cExit").value), pnl=num($("cPnl").value);
+    if(!isFinite(ex)||!isFinite(pnl)){note("Enter the exit price and the $ result shown in MT5.","bad");return;}
+    const cb=[];
+    if(!$("cStop").checked)cb.push("stop not set in MT5 at entry");
+    if(!$("cWider").checked)cb.push("moved the stop further away");
+    if(!$("cExitRule").checked)cb.push("did not exit as planned");
+    if(t.risk>0&&pnl<-t.risk*1.25)cb.push("lost more than 1.25x the planned risk");
+    $("closeBtn").disabled=true;
+    try{const shots=(t.shots||[]).slice();if($("cShot").files[0])shots.push(await api.shot($("cShot").files[0]));
+      await api.post("update",{id:t.id,patch:{status:"closed",exit:ex,pnl,closedAt:new Date().toISOString(),closeBreaks:cb,note:$("cNote").value.trim(),shots,
+        followed:(t.planBreaks||[]).length===0&&cb.length===0}});
+      ["cExit","cPnl","cNote","cShot"].forEach(id=>$(id).value="");["cStop","cWider","cExitRule"].forEach(id=>$(id).checked=false);note("");}
+    catch(e){note("Could not save: "+e.message,"bad");}
+    $("closeBtn").disabled=false;
+  });
+
+  $("setForm").addEventListener("submit",async ev=>{
+    ev.preventDefault(); const v=num($("sSize").value);
+    if(!(v>=500&&v<=1000000)){note("Enter an account size between $500 and $1,000,000.","bad");return;}
+    try{await saveSettings({accountSize:v});note("");}catch(e){note("Could not save: "+e.message,"bad");}
+  });
+
+  function shotRow(names){const w=document.createElement("div");w.className="shots";
+    for(const n of names){if(!/^[A-Za-z0-9_.-]+$/.test(n))continue;const a=document.createElement("a");a.href="shots/"+n;a.target="_blank";a.rel="noopener";
+      const im=document.createElement("img");im.src="shots/"+n;im.alt="Trade screenshot";im.loading="lazy";a.appendChild(im);w.appendChild(a);}return w;}
+
+  async function compress(file){
+    try{const img=await createImageBitmap(file);const k=Math.min(1,1600/Math.max(img.width,img.height));
+      const c=document.createElement("canvas");c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      const b=await new Promise(r=>c.toBlob(r,"image/jpeg",0.82));if(b)return b;}catch(e){}
+    return file;
+  }
+  const api={
+    async post(what,body){
+      const r=await fetch("api/"+what,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      if(!r.ok)throw new Error((await r.text())||("server answered "+r.status));
+      await load();
+    },
+    async shot(file){
+      const b=await compress(file);
+      if(b.size>6*1024*1024)throw new Error("screenshot is too large (over 6 MB)");
+      const r=await fetch("api/shot",{method:"POST",headers:{"Content-Type":b.type||"image/jpeg"},body:b});
+      if(!r.ok)throw new Error((await r.text())||"screenshot upload failed");
+      return (await r.json()).name;
+    }
+  };
+  state.db=api;
+  async function load(){
+    const r=await fetch("api/state",{cache:"no-store"});
+    if(!r.ok)throw new Error("server answered "+r.status);
+    const j=await r.json();
+    state.settings=Object.assign({accountSize:5000,attemptStartedAt:"1970-01-01T00:00:00.000Z",attempts:[]},j.settings||{});
+    state.trades=j.trades||[]; state.ok=true; note(""); render();
+  }
+  render();
+  load().catch(e=>note("Can't reach your server right now ("+e.message+"). Check your internet and reload.","bad"));
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)load().catch(()=>{});});
+})();
+</script>
+</body></html>

@@ -211,6 +211,13 @@ negative at 2x costs; its $100-account line ($191.92) is luck from the halt rule
 positive (p ~0.07) but discovery strongly negative (t -3): opposite signs = regime/noise. Fix after the run: the BTC account line had used the
 0.1 ETH lot (0.1 BTC); now 0.01 BTC. Verdicts unaffected (they use per-trade returns).
 
+## 6g. Coach track: demo practice journal (1 Nov 2026)
+
+After Track C, Pedro chose to practise on a demo account under two-step prop-challenge rules, logging every trade.
+The journal is self-hosted on the VPS (served by dresearch-dashboard at `/<token>/journal/`, link: `dresearch journal-url`),
+data in /var/lib/dresearch/journal/, review with `dresearch journal`. **Anyone acting as his coach: read docs/COACH.md.**
+(An earlier copy of the journal lived as a Claude artifact; it was replaced by this one so nothing depends on a Claude subscription.)
+
 ## 7. Methodology (summary; details in the `analysis.py` docstring)
 
 **Null model N1:**
