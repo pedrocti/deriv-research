@@ -12,7 +12,8 @@ Files, all under <data>/journal/:
   shots/          screenshots, named <utc-stamp>-<random>.jpg|png|webp
 
 Trade fields: id, created (ISO), market (XAUUSD|ETHUSD), dir (+1 buy, -1 sell), entry, stop, target,
-lots, risk (USD lost if the stop is hit), exitBy, reason, shots [names], planBreaks [text],
+lots, risk (USD lost if the stop is hit). market may also be VOL50_1S / VOL75_1S (Volatility 50/75 (1s)):
+those are random by design, so they count for rules kept but stay out of the challenge and the edge numbers;, exitBy, reason, shots [names], planBreaks [text],
 status open|closed; when closed: exit, pnl (USD from MT5, after costs), closedAt, closeBreaks [text],
 note, followed (true if no breaks at all), exitType stop|target|time|early, and for early exits
 earlyReason invalidated|news|protect|fear|impatient|other plus earlyText (his own words). Closing early
@@ -70,9 +71,30 @@ def _log(d: Path, what: str, body) -> None:
                             ensure_ascii=False) + "\n")
 
 
+PRACTICE = {"VOL50_1S", "VOL75_1S"}     # random by design: rules practice only, outside challenge and edge numbers
+SNAPSHOT_CODES = {"XAUUSD": "frxXAUUSD", "ETHUSD": "cryETHUSD", "VOL50_1S": "1HZ50V", "VOL75_1S": "1HZ75V"}
+
+
+def specs(data: Path) -> dict:
+    """Contract size, minimum and step per market from the newest MT5 snapshot (dresearch import-mt5)."""
+    snaps = sorted((Path(data) / "reports").glob("mt5_snapshot_*.json"))
+    if not snaps:
+        return {}
+    try:
+        syms = json.loads(snaps[-1].read_text())["symbols"]
+    except (OSError, ValueError, KeyError):
+        return {}
+    out = {}
+    for m, code in SNAPSHOT_CODES.items():
+        sp = (syms.get(code) or {}).get("specs") or {}
+        if sp.get("trade_contract_size"):
+            out[m] = {"contract": sp["trade_contract_size"], "min": sp.get("volume_min"), "step": sp.get("volume_step")}
+    return out
+
+
 def state(data: Path) -> dict:
     d = jdir(data)
-    return {"settings": _read(d / "settings.json", {}), "trades": _read(d / "trades.json", [])}
+    return {"settings": _read(d / "settings.json", {}), "trades": _read(d / "trades.json", []), "specs": specs(data)}
 
 
 def _clean(doc: dict) -> dict:
@@ -178,7 +200,8 @@ def challenge(st: dict) -> dict:
     s = {"accountSize": 5000.0, "attemptStartedAt": "1970", "attempts": [], **(st.get("settings") or {})}
     S = float(s["accountSize"])
     mine = [t for t in st["trades"] if t.get("created", "") >= s["attemptStartedAt"]]
-    closed = sorted((t for t in mine if t.get("status") == "closed"), key=lambda t: t["closedAt"])
+    closed = sorted((t for t in mine if t.get("status") == "closed" and t.get("market") not in PRACTICE),
+                    key=lambda t: t["closedAt"])
     bal, phase, start, days, daily, result, reason = S, 1, S, set(), {}, "running", ""
     for t in closed:
         bal += t["pnl"]
@@ -206,29 +229,32 @@ def challenge(st: dict) -> dict:
 
 
 def summary(st: dict) -> dict:
-    closed = [t for t in st["trades"] if t.get("status") == "closed" and t.get("risk")]
+    every = [t for t in st["trades"] if t.get("status") == "closed" and t.get("risk")]
+    closed = [t for t in every if t.get("market") not in PRACTICE]
     n = len(closed)
     R = [t["pnl"] / t["risk"] for t in closed]
     kept = [t for t in closed if t.get("followed")]
+    prac = [t for t in every if t.get("market") in PRACTICE]
     weeks: dict[str, list] = {}
-    for t in closed:
+    for t in every:
         d = datetime.fromisoformat(_day(t["closedAt"]))
         weeks.setdefault((d - timedelta(days=d.weekday())).date().isoformat(), []).append(t)
     breaks: dict[str, int] = {}
-    for t in closed:
+    for t in every:
         for b in (t.get("planBreaks") or []) + (t.get("closeBreaks") or []):
             key = re.sub(r"[-$0-9.,()%]+", "#", b)
             breaks[key] = breaks.get(key, 0) + 1
     avg = lambda xs: sum(xs) / len(xs) if xs else None
     return {"challenge": challenge(st), "closed": n, "open": sum(t.get("status") == "open" for t in st["trades"]),
-            "rules_kept_pct": round(100 * len(kept) / n, 1) if n else None,
+            "rules_kept_pct": round(100 * sum(bool(t.get("followed")) for t in every) / len(every), 1) if every else None,
+            "practice_volatility": {"n": len(prac), "avg_R": avg([t["pnl"] / t["risk"] for t in prac])},
             "win_rate_pct": round(100 * sum(t["pnl"] > 0 for t in closed) / n, 1) if n else None,
             "avg_R": avg(R), "total_pnl": round(sum(t["pnl"] for t in closed), 2),
             "avg_R_rules_kept": avg([t["pnl"] / t["risk"] for t in kept]),
             "avg_R_rules_broken": avg([t["pnl"] / t["risk"] for t in closed if not t.get("followed")]),
             "by_market": {m: {"n": len(xs), "avg_R": avg([t["pnl"] / t["risk"] for t in xs])}
-                          for m in {t["market"] for t in closed}
-                          for xs in [[t for t in closed if t["market"] == m]]},
+                          for m in {t["market"] for t in every}
+                          for xs in [[t for t in every if t["market"] == m]]},
             "weeks": {k: {"n": len(v), "pnl": round(sum(t["pnl"] for t in v), 2),
                           "avg_R": avg([t["pnl"] / t["risk"] for t in v]),
                           "rules_kept_pct": round(100 * sum(bool(t.get("followed")) for t in v) / len(v), 1)}
@@ -251,10 +277,11 @@ def report(data: Path) -> str:
            f"attempt {c['attempt']}  phase {c['phase']}  {c['result'].upper()}{' (' + c['reason'] + ')' if c['reason'] else ''}"
            f"  balance ${c['balance']:,.2f} of ${c['account']:,.0f}  passes in a row: {c['passes_in_a_row']}/2",
            f"closed trades {s['closed']}  open {s['open']}  rules kept {s['rules_kept_pct']}%  win rate {s['win_rate_pct']}%"
-           f"  avg {f(s['avg_R'])}  total ${s['total_pnl']:+,.2f}",
+           f"  avg {f(s['avg_R'])}  total ${s['total_pnl']:+,.2f}  (gold/ETH only; rules kept counts all markets)",
+           f"volatility practice (random by design, not counted above): {s['practice_volatility']['n']} trades, avg {f(s['practice_volatility']['avg_R'])}",
            f"avg when rules kept {f(s['avg_R_rules_kept'])}   when broken {f(s['avg_R_rules_broken'])}"]
     for m, v in sorted(s["by_market"].items()):
-        out.append(f"  {m}: {v['n']} trades, avg {f(v['avg_R'])}")
+        out.append(f"  {m}{' (practice)' if m in PRACTICE else ''}: {v['n']} trades, avg {f(v['avg_R'])}")
     out.append("weeks (Monday):")
     for k, v in s["weeks"].items():
         out.append(f"  {k}: {v['n']:>3} trades  ${v['pnl']:+9,.2f}  {f(v['avg_R'])}  rules kept {v['rules_kept_pct']}%")

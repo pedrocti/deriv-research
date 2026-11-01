@@ -93,3 +93,16 @@ def test_early_exits_are_summarised_and_exported(tmp_path):
     assert s["exits"]["early"]["n"] == 1 and s["early_reasons"]["fear"]["avg_R"] == pytest.approx(0.4)
     J.apply(tmp_path, "trade", {k: v for k, v in t1.items() if k != "id"})
     assert "got scared" in J.export_csv(tmp_path) and "closed early (fear)" in J.report(tmp_path)
+
+
+def test_volatility_practice_stays_out_of_challenge_and_specs_come_from_snapshot(tmp_path):
+    v = {**trade("2026-11-02", 500), "market": "VOL75_1S"}
+    g = {**trade("2026-11-02", -25), "followed": False}
+    st = {"settings": {"accountSize": 5000}, "trades": [v, g]}
+    assert J.challenge(st)["balance"] == 4975
+    s = J.summary(st)
+    assert s["practice_volatility"]["n"] == 1 and s["total_pnl"] == -25 and s["rules_kept_pct"] == 50.0
+    (tmp_path / "reports").mkdir()
+    (tmp_path / "reports" / "mt5_snapshot_20261029.json").write_text(json.dumps({"symbols": {
+        "1HZ75V": {"specs": {"trade_contract_size": 1.0, "volume_min": 0.05, "volume_step": 0.01}}}}))
+    assert J.state(tmp_path)["specs"] == {"VOL75_1S": {"contract": 1.0, "min": 0.05, "step": 0.01}}

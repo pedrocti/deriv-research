@@ -27,7 +27,11 @@ Practice account $5,000 by default (set in the journal). Percentages scale with 
    keeping the rules**, and only after his phone/living costs are covered. Then research the specific firm first:
    MT5 support, Nigeria accepted, payment method he can use, exact loss rules (static or trailing), news and
    consistency rules, real payout record. Industry data: roughly 5-10% pass, about 7% of accounts ever get a payout.
-8. Contract sizes on Deriv MT5: XAUUSD 1 lot = 100 oz (min 0.01); ETHUSD 1 lot = 1 ETH (min 0.1).
+8. Volatility 50 (1s) and Volatility 75 (1s) are allowed for **rules practice only** (e.g. weekends, when gold is
+   closed). They are random by design (Track A found nothing), prop firms don't offer them, and their results count
+   for "rules kept" but are kept out of the challenge balance and the edge numbers. If his Volatility results look
+   good, remind him it is luck; never let them justify paying for a challenge or trading real money.
+9. Contract sizes on Deriv MT5: XAUUSD 1 lot = 100 oz (min 0.01); ETHUSD 1 lot = 1 ETH (min 0.1).
 
 ## Where the data is
 - Journal page: `http://<VPS-IP>:8787/<token>/journal/` (print it on the VPS with `dresearch journal-url`).

@@ -161,7 +161,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     <h2 id="planH">Plan a trade</h2>
     <form id="planForm">
       <div class="row two">
-        <label>Market<select id="pMkt"><option value="XAUUSD">Gold (XAUUSD)</option><option value="ETHUSD">Ethereum (ETHUSD)</option></select></label>
+        <label>Market<select id="pMkt"><option value="XAUUSD">Gold (XAUUSD)</option><option value="ETHUSD">Ethereum (ETHUSD)</option><option value="VOL50_1S">Volatility 50 (1s): practice only</option><option value="VOL75_1S">Volatility 75 (1s): practice only</option></select></label>
         <div style="display:grid;gap:4px"><span class="hint">Direction</span>
           <div class="seg" role="group" aria-label="Direction"><button type="button" id="pBuy" aria-pressed="true">Buy</button><button type="button" id="pSell" aria-pressed="false">Sell</button></div></div>
       </div>
@@ -214,7 +214,11 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
 
 <script>
 (function(){
-  const CS={XAUUSD:100,ETHUSD:1}, MINLOT={XAUUSD:0.01,ETHUSD:0.1};
+  const CS={XAUUSD:100,ETHUSD:1,VOL50_1S:1,VOL75_1S:1}, MINLOT={XAUUSD:0.01,ETHUSD:0.1,VOL50_1S:null,VOL75_1S:null};
+  const STEP={XAUUSD:0.01,ETHUSD:0.01,VOL50_1S:0.01,VOL75_1S:0.01};
+  const minOf=m=>MINLOT[m]==null?STEP[m]:MINLOT[m];
+  const NAMES={XAUUSD:"Gold",ETHUSD:"Ethereum",VOL50_1S:"Volatility 50 (1s)",VOL75_1S:"Volatility 75 (1s)"};
+  const PRACTICE=m=>m==="VOL50_1S"||m==="VOL75_1S";   // random by design: rules practice only, kept out of the challenge and edge numbers
   const MAX_TRADES_DAY=2, MAX_LOSSES_DAY=2, MIN_DAYS=4;
   const state={settings:{accountSize:5000,attemptStartedAt:"1970-01-01T00:00:00.000Z",attempts:[]},trades:[],dir:1,db:null,ok:false};
   const $=id=>document.getElementById(id);
@@ -226,7 +230,8 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
   function challenge(){
     const L=lim(), start=state.settings.attemptStartedAt||"1970";
     const mine=state.trades.filter(t=>t.created>=start);
-    const closed=mine.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?-1:1);
+    const allClosed=mine.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?-1:1);
+    const closed=allClosed.filter(t=>!PRACTICE(t.market));
     let bal=L.S, phase=1, phaseStart=L.S, days=new Set(), daily={}, result="running", reason="";
     for(const t of closed){
       bal+=t.pnl; const cd=localDate(t.closedAt); daily[cd]=(daily[cd]||0)+t.pnl; days.add(localDate(t.created));
@@ -235,12 +240,13 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
       if(phase===1&&bal-phaseStart>=L.p1&&days.size>=MIN_DAYS){phase=2;phaseStart=bal;days=new Set();}
       else if(phase===2&&bal-phaseStart>=L.p2&&days.size>=MIN_DAYS){result="passed";break;}
     }
-    for(const t of mine) if(t.status==="open") days.add(localDate(t.created));
+    for(const t of mine) if(t.status==="open"&&!PRACTICE(t.market)) days.add(localDate(t.created));
     const today=localDate(new Date());
     const todayClosed=closed.filter(t=>localDate(t.closedAt)===today);
+    const todayAll=allClosed.filter(t=>localDate(t.closedAt)===today);
     return{L,bal,phase,phaseStart,days:days.size,result,reason,
       todayPnl:todayClosed.reduce((a,t)=>a+t.pnl,0),
-      todayLosses:todayClosed.filter(t=>t.pnl<0).length,
+      todayLosses:todayAll.filter(t=>t.pnl<0).length,
       todayCount:mine.filter(t=>localDate(t.created)===today).length,
       open:mine.find(t=>t.status==="open")||state.trades.find(t=>t.status==="open")};
   }
@@ -255,7 +261,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
       [filled,"Plan written: entry, stop, target, size, exit time, and a reason or a screenshot"],
       [sides,"Stop is on the losing side and target on the winning side"],
       [isFinite(risk)&&risk<=L.risk+1e-9,"Risk "+(isFinite(risk)?money(risk):"$?")+" is within "+money(L.risk)+" (0.5% of the account)"],
-      [isFinite(lots)&&lots>=MINLOT[m]-1e-9,"Size is at least the minimum "+MINLOT[m]+" lots"],
+      [MINLOT[m]==null?isFinite(lots)&&lots>0:isFinite(lots)&&lots>=MINLOT[m]-1e-9,MINLOT[m]==null?"Size entered (check the minimum size in MT5)":"Size is at least the minimum "+MINLOT[m]+" lots"],
       [!c.open,"No other trade is open"],
       [c.todayCount<MAX_TRADES_DAY,"Fewer than "+MAX_TRADES_DAY+" trades today ("+c.todayCount+" so far)"],
       [c.todayLosses<MAX_LOSSES_DAY,"Fewer than "+MAX_LOSSES_DAY+" losses today"],
@@ -282,17 +288,18 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     if(!(isFinite(p.e)&&isFinite(p.s)&&p.e!==p.s)){const h=document.createElement("p");h.className="hint";h.textContent="Enter entry and stop to see your stop and target in price, percent and dollars, and your maximum size.";box.appendChild(h);return;}
     const cs=CS[p.m], dec=p.m==="XAUUSD"?2:2, fx=v=>v.toFixed(dec), pct=v=>(v/p.e*100).toFixed(3)+"%";
     const lots=isFinite(p.lots)&&p.lots>0?p.lots:null, sd=Math.abs(p.e-p.s), side=x=>(x<p.e?"below":"above");
-    const maxLots=Math.floor(c.L.risk/(sd*cs)/0.01+1e-9)*0.01;
+    const st=STEP[p.m]||0.01, dp=Math.max(0,Math.round(-Math.log10(st))), maxLots=+(Math.floor(c.L.risk/(sd*cs)/st+1e-9)*st).toFixed(dp);
     line("Stop-loss "+fx(p.s),fx(sd)+" "+side(p.s)+" entry ("+pct(sd)+")"+(lots?" · you lose "+money(sd*lots*cs)+" at "+lots+" lots":""),lots&&sd*lots*cs>c.L.risk+1e-9?"neg":"");
     if(isFinite(p.g)){const gd=Math.abs(p.g-p.e);
       line("Target "+fx(p.g),fx(gd)+" "+side(p.g)+" entry ("+pct(gd)+")"+(lots?" · you gain "+money(gd*lots*cs):"")+" · reward to risk "+(gd/sd).toFixed(2)+(gd/sd<1?" (less than you risk)":""),gd/sd<1?"neg":"");
-      if(lots){const tgt=c.phase===1?c.L.p1:c.L.p2;line("Effect on the challenge","a win adds "+money(gd*lots*cs)+" = "+Math.round(gd*lots*cs/tgt*100)+"% of the phase "+c.phase+" target; a loss uses "+Math.round(sd*lots*cs/c.L.daily*100)+"% of today's loss room");}}
-    if(maxLots>=MINLOT[p.m]){
-      line("Your size limit","at most "+maxLots.toFixed(2)+" lots with this stop ("+money(c.L.risk)+" risk)");
+      if(lots&&PRACTICE(p.m))line("Practice market","random by design: this trade counts for rules kept, not for the challenge");
+      else if(lots){const tgt=c.phase===1?c.L.p1:c.L.p2;line("Effect on the challenge","a win adds "+money(gd*lots*cs)+" = "+Math.round(gd*lots*cs/tgt*100)+"% of the phase "+c.phase+" target; a loss uses "+Math.round(sd*lots*cs/c.L.daily*100)+"% of today's loss room");}}
+    if(maxLots>=minOf(p.m)&&maxLots>0){
+      line("Your size limit","at most "+maxLots.toFixed(dp)+" lots with this stop ("+money(c.L.risk)+" risk)");
       const lim=lots?c.L.risk/(lots*cs):null;
       if(lim)line("Furthest stop allowed at "+lots+" lots",fx(lim)+" away: "+(p.dir>0?"no lower than ":"no higher than ")+fx(p.dir>0?p.e-lim:p.e+lim));
-      const b=$("pUseMax");b.hidden=false;b.textContent="Use "+maxLots.toFixed(2)+" lots";b.dataset.lots=maxLots.toFixed(2);
-    } else line("Stop too wide","even the minimum "+MINLOT[p.m]+" lots risks "+money(sd*MINLOT[p.m]*cs)+". Move the stop closer or skip this trade.","neg");
+      const b=$("pUseMax");b.hidden=false;b.textContent="Use "+maxLots.toFixed(dp)+" lots";b.dataset.lots=maxLots.toFixed(dp);
+    } else line("Stop too wide","even the minimum "+minOf(p.m)+" lots risks "+money(sd*minOf(p.m)*cs)+". Move the stop closer or skip this trade.","neg");
     const m=document.createElement("p");m.className="hint";m.textContent="Type these exact stop-loss and target prices into MT5 when you place the order.";box.appendChild(m);
   }
 
@@ -325,7 +332,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     const t=c.open, sec=$("openSec"); sec.hidden=!t; if(!t)return;
     const box=$("openInfo"); box.textContent="";
     const l1=document.createElement("div"); l1.className="num";
-    l1.textContent=(t.dir>0?"BUY ":"SELL ")+t.market+" "+t.lots+" lots @ "+t.entry+" · stop "+t.stop+" · target "+t.target;
+    l1.textContent=(t.dir>0?"BUY ":"SELL ")+(NAMES[t.market]||t.market)+" "+t.lots+" lots @ "+t.entry+" · stop "+t.stop+" · target "+t.target;
     const l2=document.createElement("div"); l2.className="hint";
     l2.textContent="Risk "+money(t.risk)+" · exit by "+(t.exitBy?new Date(t.exitBy).toLocaleString():"?")+(t.planBreaks&&t.planBreaks.length?" · "+t.planBreaks.length+" rule break(s) at entry":"");
     const l3=document.createElement("div"); l3.className="hint"; l3.textContent="Reason: "+(t.reason||"see screenshot");
@@ -334,22 +341,24 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
   }
 
   function renderNumbers(){
-    const closed=state.trades.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?-1:1);
-    const n=closed.length, kept=closed.filter(t=>t.followed).length, wins=closed.filter(t=>t.pnl>0).length;
+    const all=state.trades.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?-1:1);
+    const closed=all.filter(t=>!PRACTICE(t.market)), prac=all.filter(t=>PRACTICE(t.market));
+    const n=closed.length, kept=all.filter(t=>t.followed).length, wins=closed.filter(t=>t.pnl>0).length;
     const R=closed.map(t=>t.risk>0?t.pnl/t.risk:0), sum=closed.reduce((a,t)=>a+t.pnl,0);
     const avgR=n?R.reduce((a,b)=>a+b,0)/n:0;
     const keptR=closed.filter(t=>t.followed).map(t=>t.pnl/t.risk), brokeR=closed.filter(t=>!t.followed).map(t=>t.pnl/t.risk);
     const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:NaN;
     const items=[["Closed trades",String(n),n<60?"aim for 60 to 100 before judging":"enough to start judging"],
-      ["Rules kept",n?Math.round(kept/n*100)+"%":"–","target 95% or more"],
+      ["Rules kept",all.length?Math.round(kept/all.length*100)+"%":"–","target 95% or more, all markets"],
       ["Win rate",n?Math.round(wins/n*100)+"%":"–",wins+" winners"],
       ["Average R",n?(avgR>=0?"+":"")+avgR.toFixed(2)+"R":"–","per trade, after costs"],
       ["Total P&L",money(sum,true),"all attempts"],
-      ["Kept vs broke",(isFinite(avg(keptR))?avg(keptR).toFixed(2):"–")+" / "+(isFinite(avg(brokeR))?avg(brokeR).toFixed(2):"–"),"average R when rules kept / broken"]];
+      ["Kept vs broke",(isFinite(avg(keptR))?avg(keptR).toFixed(2):"–")+" / "+(isFinite(avg(brokeR))?avg(brokeR).toFixed(2):"–"),"average R when rules kept / broken"],
+      ["Volatility practice",prac.length?prac.length+" · "+((avg(prac.map(t=>t.pnl/t.risk))>=0?"+":"")+avg(prac.map(t=>t.pnl/t.risk)).toFixed(2))+"R":"–","random by design: rules practice, not counted above"]];
     const box=$("numbers"); box.textContent="";
     for(const [k,v,s] of items){const d=document.createElement("div");d.className="stat";const a=document.createElement("small");a.textContent=k;const b=document.createElement("b");b.textContent=v;const c=document.createElement("small");c.textContent=s;d.append(a,b,c);box.appendChild(d);}
     const weeks={};
-    for(const t of closed){const d=new Date(t.closedAt);const m=new Date(d);m.setDate(d.getDate()-((d.getDay()+6)%7));const k=localDate(m);(weeks[k]=weeks[k]||[]).push(t);}
+    for(const t of all){const d=new Date(t.closedAt);const m=new Date(d);m.setDate(d.getDate()-((d.getDay()+6)%7));const k=localDate(m);(weeks[k]=weeks[k]||[]).push(t);}
     const tb=$("weeks").tBodies[0]; tb.textContent="";
     const keys=Object.keys(weeks).sort().reverse();
     if(!keys.length){const tr=tb.insertRow();const td=tr.insertCell();td.colSpan=5;td.textContent="No weeks yet";td.style.textAlign="left";}
@@ -364,7 +373,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     for(const t of closed.slice(0,60)){
       const d=document.createElement("div"); d.className="trade";
       const r1=document.createElement("div"); r1.className="t1";
-      const a=document.createElement("strong"); a.textContent=(t.dir>0?"Buy ":"Sell ")+t.market;
+      const a=document.createElement("strong"); a.textContent=(t.dir>0?"Buy ":"Sell ")+(NAMES[t.market]||t.market)+(PRACTICE(t.market)?" (practice)":"");
       const b=document.createElement("span"); b.className="num "+(t.pnl>=0?"pos":"neg"); b.textContent=money(t.pnl,true)+" · "+(t.pnl/t.risk>=0?"+":"")+(t.pnl/t.risk).toFixed(2)+"R";
       r1.append(a,b);
       const r2=document.createElement("div"); r2.className="meta";
@@ -385,7 +394,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
 
   function renderRules(){
     const L=lim(), ol=$("rulesList"); ol.textContent="";
-    ["Trade only gold (XAUUSD) or Ethereum (ETHUSD) on the demo account.",
+    ["Trade gold (XAUUSD) or Ethereum (ETHUSD) on the demo account. Volatility 50 (1s) and 75 (1s) are allowed for rules practice only: they are random by design, prop firms don't offer them, and their results are kept out of the challenge and the edge numbers.",
      "Write the full plan here before entering: entry, stop, target, size, latest exit time and the reason.",
      "Risk at most "+money(L.risk)+" per trade (0.5%). Set the stop in MT5 the moment you enter.",
      "Move the stop closer if you like, never further away.",
@@ -500,7 +509,9 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     if(!r.ok)throw new Error("server answered "+r.status);
     const j=await r.json();
     state.settings=Object.assign({accountSize:5000,attemptStartedAt:"1970-01-01T00:00:00.000Z",attempts:[]},j.settings||{});
-    state.trades=j.trades||[]; state.ok=true; note(""); render();
+    state.trades=j.trades||[];
+    for(const [m,v] of Object.entries(j.specs||{})){if(v.contract)CS[m]=v.contract;if(v.min)MINLOT[m]=v.min;if(v.step)STEP[m]=v.step;}
+    state.ok=true; note(""); render();
   }
   render();
   load().catch(e=>note("Can't reach your server right now ("+e.message+"). Check your internet and reload.","bad"));
