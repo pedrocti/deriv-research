@@ -211,7 +211,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     <h2 id="rulesH">The rules</h2>
     <ol class="rules" id="rulesList"></ol>
     <form id="setForm" class="inline">
-      <label style="flex:1 1 180px">Practice account size ($)<input id="sSize" class="num" inputmode="decimal"></label>
+      <label style="flex:1 1 180px" id="sLab">Practice account size ($)<input id="sSize" class="num" inputmode="decimal"></label>
       <button type="submit" class="ghost" id="sBtn">Save size</button>
     </form>
     <p class="hint" id="sizeNote">You can change the size only before the first trade of an attempt.</p>
@@ -243,7 +243,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
   const money=(v,sign)=>{const s=(sign&&v>0?"+":"")+(v<0?"−":"")+"$"+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});return s;};
   const num=v=>{const x=parseFloat(String(v).replace(/,/g,""));return isFinite(x)?x:NaN;};
   const localDate=d=>{d=new Date(d);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
-  const lim=()=>{const S=state.settings.accountSize||5000;return{S,risk:S*0.005,daily:S*0.05,max:S*0.10,p1:S*0.08,p2:S*0.05};};
+  const lim=()=>{const S=bs().accountSize||state.settings.accountSize||5000;return{S,risk:S*0.005,daily:S*0.05,max:S*0.10,p1:S*0.08,p2:S*0.05};};
 
   function challenge(){
     const L=lim(), start=bs().attemptStartedAt||"1970";
@@ -423,6 +423,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
      "Pay for a real challenge only after passing twice in a row with 95% of trades keeping the rules."
     ].forEach(r=>{const li=document.createElement("li");li.textContent=r;ol.appendChild(li);});
     $("sSize").value=L.S;
+    $("sLab").firstChild.textContent="Practice account size for the "+(state.book==="free"?"free":"disciplined")+" record ($)";
   }
 
   function stats(b){
@@ -452,7 +453,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     $("planH").textContent=state.book==="free"?"Plan a trade (free trading)":"Plan a trade (disciplined)";
   }
   function render(){const c=challenge();renderBook();renderStatus(c);renderOpen(c);renderPlan();renderNumbers();renderHistory();renderRules();renderCompare();
-    const started=state.trades.some(t=>t.created>=(bs().attemptStartedAt||"1970"));
+    const started=bookTrades().some(t=>t.created>=(bs().attemptStartedAt||"1970"));
     $("sSize").disabled=started||!state.ok; $("sBtn").disabled=started||!state.ok;}
 
   function note(msg,kind){const n=$("storeNote");n.hidden=!msg;n.textContent=msg||"";n.className="banner "+(kind||"info");}
@@ -464,7 +465,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
   async function newAttempt(result){
     const now=new Date().toISOString(), cur=bs();
     const books=Object.assign({free:bs("free"),disciplined:bs("disciplined")},state.settings.books||{});
-    books[state.book]={attemptStartedAt:now,attempts:(cur.attempts||[]).concat([{startedAt:cur.attemptStartedAt,endedAt:now,result}])};
+    books[state.book]={accountSize:cur.accountSize,attemptStartedAt:now,attempts:(cur.attempts||[]).concat([{startedAt:cur.attemptStartedAt,endedAt:now,result}])};
     try{await saveSettings({books});}catch(e){note("Could not start a new attempt: "+e.message,"bad");}
   }
 
@@ -523,7 +524,9 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
   $("setForm").addEventListener("submit",async ev=>{
     ev.preventDefault(); const v=num($("sSize").value);
     if(!(v>=500&&v<=1000000)){note("Enter an account size between $500 and $1,000,000.","bad");return;}
-    try{await saveSettings({accountSize:v});note("");}catch(e){note("Could not save: "+e.message,"bad");}
+    const books=Object.assign({free:bs("free"),disciplined:bs("disciplined")},state.settings.books||{});
+    books[state.book]=Object.assign({},bs(),{accountSize:v});
+    try{await saveSettings({books});note("");}catch(e){note("Could not save: "+e.message,"bad");}
   });
 
   function shotRow(names){const w=document.createElement("div");w.className="shots";

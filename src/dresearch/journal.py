@@ -149,9 +149,12 @@ def apply(data: Path, op: str, body: dict) -> dict:
             books = {}
             for name, b in (body.get("books") or {}).items():
                 if name in BOOKS and isinstance(b, dict):
-                    books[name] = {"attemptStartedAt": str(b.get("attemptStartedAt", "1970"))[:40],
+                    books[name] = {"accountSize": float(b.get("accountSize") or s["accountSize"]),
+                                   "attemptStartedAt": str(b.get("attemptStartedAt", "1970"))[:40],
                                    "attempts": [{k: str(a.get(k, ""))[:40] for k in ("startedAt", "endedAt", "result")}
                                                 for a in (b.get("attempts") or [])][:500]}
+            if any(not 500 <= b["accountSize"] <= 1_000_000 for b in books.values()):
+                raise ValueError("account size must be between 500 and 1,000,000")
             if books:
                 s["books"] = books
             if not 500 <= s["accountSize"] <= 1_000_000:

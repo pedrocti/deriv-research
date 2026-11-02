@@ -122,3 +122,11 @@ def test_two_records_are_separate_and_compared(tmp_path):
     assert "TWO RECORDS" in r and "--- DISCIPLINED RECORD ---" in r and "--- FREE RECORD ---" in r
     with pytest.raises(ValueError):
         J.apply(tmp_path, "trade", {"book": "yolo"})
+
+
+def test_each_record_has_its_own_account_size(tmp_path):
+    J.apply(tmp_path, "trade", {**{k: v for k, v in trade("2026-11-03", 100).items() if k != "id"}, "book": "disciplined"})
+    J.apply(tmp_path, "settings", {"accountSize": 5000, "books": {"disciplined": {"accountSize": 10000, "attemptStartedAt": "1970"}}})
+    st = J.state(tmp_path)
+    assert J.challenge(J.book_view(st, "disciplined"))["balance"] == 10100
+    assert J.challenge(J.book_view(st, "free"))["account"] == 5000
