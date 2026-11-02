@@ -105,9 +105,21 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
 
   <div id="storeNote" class="banner info">Loading your log…</div>
 
+  <section aria-labelledby="bookH" class="books">
+    <h2 id="bookH" class="eyebrow" style="font-family:var(--body)">Which record?</h2>
+    <div class="seg" role="group" aria-label="Record"><button type="button" id="bFree" aria-pressed="false">Free trading</button><button type="button" id="bDisc" aria-pressed="true">Disciplined</button></div>
+    <p class="hint" id="bookHint"></p>
+  </section>
+
+  <section aria-labelledby="cmpH" id="cmpSec">
+    <h2 id="cmpH">Free vs disciplined</h2>
+    <div class="tablewrap"><table id="cmp"><thead><tr><th></th><th>Free</th><th>Disciplined</th></tr></thead><tbody></tbody></table></div>
+    <p class="hint">Gold and Ethereum only for results; rules kept counts every market. Compare after at least 30 trades in each record.</p>
+  </section>
+
   <section id="statusSec" aria-labelledby="statusH">
     <div class="inline" style="justify-content:space-between">
-      <h2 id="statusH">Attempt <span id="attemptNo" class="num">1</span></h2>
+      <h2 id="statusH"><span id="statusBook"></span>Attempt <span id="attemptNo" class="num">1</span></h2>
       <span id="phasePill" class="pill">Phase 1</span>
     </div>
     <div id="attemptBanner" hidden></div>
@@ -220,7 +232,13 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
   const NAMES={XAUUSD:"Gold",ETHUSD:"Ethereum",VOL50_1S:"Volatility 50 (1s)",VOL75_1S:"Volatility 75 (1s)"};
   const PRACTICE=m=>m==="VOL50_1S"||m==="VOL75_1S";   // random by design: rules practice only, kept out of the challenge and edge numbers
   const MAX_TRADES_DAY=2, MAX_LOSSES_DAY=2, MIN_DAYS=4;
-  const state={settings:{accountSize:5000,attemptStartedAt:"1970-01-01T00:00:00.000Z",attempts:[]},trades:[],dir:1,db:null,ok:false};
+  const state={settings:{accountSize:5000,attemptStartedAt:"1970-01-01T00:00:00.000Z",attempts:[]},trades:[],dir:1,db:null,ok:false,book:"disciplined"};
+  try{const b=localStorage.getItem("journalBook");if(b==="free"||b==="disciplined")state.book=b;}catch(e){}
+  const bookOf=t=>t.book||"free";                       // trades logged before records existed were free trading
+  const bookTrades=(b)=>state.trades.filter(t=>bookOf(t)===(b||state.book));
+  function bs(b){b=b||state.book;const books=state.settings.books||{};
+    if(books[b])return books[b];
+    return b==="free"?{attemptStartedAt:state.settings.attemptStartedAt||"1970",attempts:state.settings.attempts||[]}:{attemptStartedAt:"1970",attempts:[]};}
   const $=id=>document.getElementById(id);
   const money=(v,sign)=>{const s=(sign&&v>0?"+":"")+(v<0?"−":"")+"$"+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});return s;};
   const num=v=>{const x=parseFloat(String(v).replace(/,/g,""));return isFinite(x)?x:NaN;};
@@ -228,8 +246,8 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
   const lim=()=>{const S=state.settings.accountSize||5000;return{S,risk:S*0.005,daily:S*0.05,max:S*0.10,p1:S*0.08,p2:S*0.05};};
 
   function challenge(){
-    const L=lim(), start=state.settings.attemptStartedAt||"1970";
-    const mine=state.trades.filter(t=>t.created>=start);
+    const L=lim(), start=bs().attemptStartedAt||"1970";
+    const mine=bookTrades().filter(t=>t.created>=start);
     const allClosed=mine.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?-1:1);
     const closed=allClosed.filter(t=>!PRACTICE(t.market));
     let bal=L.S, phase=1, phaseStart=L.S, days=new Set(), daily={}, result="running", reason="";
@@ -248,7 +266,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
       todayPnl:todayClosed.reduce((a,t)=>a+t.pnl,0),
       todayLosses:todayAll.filter(t=>t.pnl<0).length,
       todayCount:mine.filter(t=>localDate(t.created)===today).length,
-      open:mine.find(t=>t.status==="open")||state.trades.find(t=>t.status==="open")};
+      open:mine.find(t=>t.status==="open")||bookTrades().find(t=>t.status==="open")};
   }
 
   function planChecks(c){
@@ -305,7 +323,8 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
 
   function renderStatus(c){
     const L=c.L, tgt=c.phase===1?L.p1:L.p2, prog=c.bal-c.phaseStart;
-    $("attemptNo").textContent=(state.settings.attempts||[]).length+1;
+    $("statusBook").textContent=state.book==="free"?"Free · ":"Disciplined · ";
+    $("attemptNo").textContent=(bs().attempts||[]).length+1;
     const pill=$("phasePill");
     pill.textContent=c.result==="passed"?"Passed":c.result==="failed"?"Failed":"Phase "+c.phase; pill.className="pill"+(c.result==="passed"?" good":c.result==="failed"?" bad":"");
     $("bal").textContent=money(c.bal);
@@ -324,7 +343,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
       btn.onclick=()=>newAttempt(c.result);
       b.append(p,btn);
     } else b.hidden=true;
-    const at=state.settings.attempts||[]; let k=0; for(let i=at.length-1;i>=0&&at[i].result==="passed";i--)k++;
+    const at=bs().attempts||[]; let k=0; for(let i=at.length-1;i>=0&&at[i].result==="passed";i--)k++;
     $("streak").textContent=k>=2?"Passed "+k+" attempts in a row. You have met the bar to consider a paid challenge. Check the firm's rules with Claude first.":"Passed attempts in a row: "+k+" of 2 needed before paying for a real challenge.";
   }
 
@@ -341,7 +360,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
   }
 
   function renderNumbers(){
-    const all=state.trades.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?-1:1);
+    const all=bookTrades().filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?-1:1);
     const closed=all.filter(t=>!PRACTICE(t.market)), prac=all.filter(t=>PRACTICE(t.market));
     const n=closed.length, kept=all.filter(t=>t.followed).length, wins=closed.filter(t=>t.pnl>0).length;
     const R=closed.map(t=>t.risk>0?t.pnl/t.risk:0), sum=closed.reduce((a,t)=>a+t.pnl,0);
@@ -367,7 +386,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
   }
 
   function renderHistory(){
-    const closed=state.trades.filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?1:-1);
+    const closed=bookTrades().filter(t=>t.status==="closed").sort((a,b)=>a.closedAt<b.closedAt?1:-1);
     const box=$("history"); box.textContent="";
     if(!closed.length){const p=document.createElement("p");p.className="hint";p.textContent="No closed trades yet. Your first one will appear here.";box.appendChild(p);return;}
     for(const t of closed.slice(0,60)){
@@ -406,8 +425,34 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     $("sSize").value=L.S;
   }
 
-  function render(){const c=challenge();renderStatus(c);renderOpen(c);renderPlan();renderNumbers();renderHistory();renderRules();
-    const started=state.trades.some(t=>t.created>=(state.settings.attemptStartedAt||"1970"));
+  function stats(b){
+    const all=bookTrades(b).filter(t=>t.status==="closed"&&t.risk>0), real=all.filter(t=>!PRACTICE(t.market));
+    const R=real.map(t=>t.pnl/t.risk), avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:NaN;
+    const losses=R.filter(r=>r<0);
+    return{n:all.length,nReal:real.length,kept:all.length?all.filter(t=>t.followed).length/all.length:NaN,
+      win:real.length?real.filter(t=>t.pnl>0).length/real.length:NaN,avgR:avg(R),pnl:real.reduce((a,t)=>a+t.pnl,0),
+      worst:losses.length?Math.min(...losses):NaN,avgLoss:avg(losses),
+      risk:all.length?all.reduce((x,t)=>x+t.risk,0)/all.length:NaN,bigLoss:real.length?Math.min(0,...real.map(t=>t.pnl)):NaN,
+      early:all.length?all.filter(t=>t.exitType==="early").length/all.length:NaN,
+      perDay:(()=>{const d=new Set(all.map(t=>localDate(t.created)));return d.size?all.length/d.size:NaN;})()};
+  }
+  function renderCompare(){
+    const f=stats("free"), d=stats("disciplined"), tb=$("cmp").tBodies[0]; tb.textContent="";
+    const pc=v=>isFinite(v)?Math.round(v*100)+"%":"–", r=v=>isFinite(v)?(v>=0?"+":"")+v.toFixed(2)+"R":"–";
+    [["Closed trades",x=>x.n+(x.n!==x.nReal?" ("+x.nReal+" gold/ETH)":"")],["Rules kept",x=>pc(x.kept)],["Win rate",x=>pc(x.win)],
+     ["Average R",x=>r(x.avgR)],["Total P&L",x=>money(x.pnl,true)],["Average risk per trade",x=>isFinite(x.risk)?money(x.risk):"–"],["Average loss",x=>r(x.avgLoss)],["Worst loss",x=>r(x.worst)],["Biggest loss in $",x=>isFinite(x.bigLoss)?money(x.bigLoss):"–"],
+     ["Closed early",x=>pc(x.early)],["Trades per trading day",x=>isFinite(x.perDay)?x.perDay.toFixed(1):"–"]]
+     .forEach(([k,fn])=>{const tr=tb.insertRow();[k,fn(f),fn(d)].forEach(v=>{const td=tr.insertCell();td.textContent=v;});});
+  }
+  function renderBook(){
+    $("bFree").setAttribute("aria-pressed",String(state.book==="free"));$("bDisc").setAttribute("aria-pressed",String(state.book==="disciplined"));
+    $("bookHint").textContent=state.book==="free"
+      ?"Free trading: trade the way you used to. The log still records every rule you break, so you can compare. Pick the record before you plan a trade; trades can't be moved between records."
+      :"Disciplined: every rule, every time. This is the record that decides whether you're ready for a paid challenge.";
+    $("planH").textContent=state.book==="free"?"Plan a trade (free trading)":"Plan a trade (disciplined)";
+  }
+  function render(){const c=challenge();renderBook();renderStatus(c);renderOpen(c);renderPlan();renderNumbers();renderHistory();renderRules();renderCompare();
+    const started=state.trades.some(t=>t.created>=(bs().attemptStartedAt||"1970"));
     $("sSize").disabled=started||!state.ok; $("sBtn").disabled=started||!state.ok;}
 
   function note(msg,kind){const n=$("storeNote");n.hidden=!msg;n.textContent=msg||"";n.className="banner "+(kind||"info");}
@@ -417,11 +462,14 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     await api.post("settings",next);
   }
   async function newAttempt(result){
-    const now=new Date().toISOString();
-    const at=(state.settings.attempts||[]).concat([{startedAt:state.settings.attemptStartedAt,endedAt:now,result}]);
-    try{await saveSettings({attempts:at,attemptStartedAt:now});}catch(e){note("Could not start a new attempt: "+e.message,"bad");}
+    const now=new Date().toISOString(), cur=bs();
+    const books=Object.assign({free:bs("free"),disciplined:bs("disciplined")},state.settings.books||{});
+    books[state.book]={attemptStartedAt:now,attempts:(cur.attempts||[]).concat([{startedAt:cur.attemptStartedAt,endedAt:now,result}])};
+    try{await saveSettings({books});}catch(e){note("Could not start a new attempt: "+e.message,"bad");}
   }
 
+  const setBook=b=>{state.book=b;try{localStorage.setItem("journalBook",b);}catch(e){}render();};
+  $("bFree").onclick=()=>setBook("free"); $("bDisc").onclick=()=>setBook("disciplined");
   $("pBuy").onclick=()=>{state.dir=1;$("pBuy").setAttribute("aria-pressed","true");$("pSell").setAttribute("aria-pressed","false");renderPlan();};
   $("pSell").onclick=()=>{state.dir=-1;$("pSell").setAttribute("aria-pressed","true");$("pBuy").setAttribute("aria-pressed","false");renderPlan();};
   ["pMkt","pEntry","pStop","pTarget","pLots","pExitBy","pReason","pShot"].forEach(id=>$(id).addEventListener("input",renderPlan));
@@ -434,7 +482,7 @@ a.btnlink{justify-self:start;display:inline-block;font:600 1rem var(--body);bord
     if(!(isFinite(p.e)&&isFinite(p.s)&&isFinite(p.lots)&&p.lots>0)){note("Enter at least entry, stop and size so the risk can be recorded.","bad");return;}
     const doc={market:p.m,dir:state.dir,entry:p.e,stop:p.s,target:isFinite(p.g)?p.g:null,lots:p.lots,risk:Math.abs(p.e-p.s)*p.lots*CS[p.m],
       exitBy:p.exitBy?new Date(p.exitBy).toISOString():null,reason:p.reason,created:new Date().toISOString(),status:"open",
-      planBreaks:p.list.filter(x=>!x[0]).map(x=>x[1]),shots:[]};
+      planBreaks:p.list.filter(x=>!x[0]).map(x=>x[1]),shots:[],book:state.book};
     $("planBtn").disabled=true;
     try{if($("pShot").files[0])doc.shots.push(await api.shot($("pShot").files[0]));
       await api.post("trade",doc);["pEntry","pStop","pTarget","pLots","pExitBy","pReason","pShot"].forEach(id=>$(id).value="");note("");}

@@ -15,7 +15,8 @@ Trade fields: id, created (ISO), market (XAUUSD|ETHUSD), dir (+1 buy, -1 sell), 
 lots, risk (USD lost if the stop is hit). market may also be VOL50_1S / VOL75_1S (Volatility 50/75 (1s)):
 those are random by design, so they count for rules kept but stay out of the challenge and the edge numbers;, exitBy, reason, shots [names], planBreaks [text],
 status open|closed; when closed: exit, pnl (USD from MT5, after costs), closedAt, closeBreaks [text],
-note, followed (true if no breaks at all), exitType stop|target|time|early, and for early exits
+note, followed (true if no breaks at all), book free|disciplined (two records: trading as he used to vs
+every rule; trades without it are "free"; settings.books holds each record's attempts), exitType stop|target|time|early, and for early exits
 earlyReason invalidated|news|protect|fear|impatient|other plus earlyText (his own words). Closing early
 out of fear or impatience is recorded as a rule break; the other early reasons are not.
 
@@ -42,7 +43,7 @@ MAX_SHOT = 6 * 1024 * 1024
 MAX_JSON = 256 * 1024
 TRADE_FIELDS = {"market", "dir", "entry", "stop", "target", "lots", "risk", "exitBy", "reason", "created",
                 "status", "planBreaks", "shots", "exit", "pnl", "closedAt", "closeBreaks", "note", "followed",
-                "exitType", "earlyReason", "earlyText"}
+                "exitType", "earlyReason", "earlyText", "book"}
 LAGOS = timezone(timedelta(hours=1))           # Pedro's clock; trading days are counted in it
 
 
@@ -71,6 +72,7 @@ def _log(d: Path, what: str, body) -> None:
                             ensure_ascii=False) + "\n")
 
 
+BOOKS = ("free", "disciplined")   # two records: trading as he used to vs every rule; trades without "book" are free
 PRACTICE = {"VOL50_1S", "VOL75_1S"}     # random by design: rules practice only, outside challenge and edge numbers
 SNAPSHOT_CODES = {"XAUUSD": "frxXAUUSD", "ETHUSD": "cryETHUSD", "VOL50_1S": "1HZ50V", "VOL75_1S": "1HZ75V"}
 
@@ -104,6 +106,8 @@ def _clean(doc: dict) -> dict:
             if not isinstance(out[k], list):
                 raise ValueError(f"{k} must be a list")
             out[k] = [str(x)[:300] for x in out[k]][:20]
+    if "book" in out and out["book"] not in BOOKS:
+        raise ValueError("book must be free or disciplined")
     for n in out.get("shots", []):
         if not SHOT_RE.match(n):
             raise ValueError("bad screenshot name")
@@ -142,6 +146,14 @@ def apply(data: Path, op: str, body: dict) -> dict:
                  "attemptStartedAt": str(body.get("attemptStartedAt", "1970-01-01T00:00:00.000Z"))[:40],
                  "attempts": [{k: str(a.get(k, ""))[:40] for k in ("startedAt", "endedAt", "result")}
                               for a in (body.get("attempts") or [])][:500]}
+            books = {}
+            for name, b in (body.get("books") or {}).items():
+                if name in BOOKS and isinstance(b, dict):
+                    books[name] = {"attemptStartedAt": str(b.get("attemptStartedAt", "1970"))[:40],
+                                   "attempts": [{k: str(a.get(k, ""))[:40] for k in ("startedAt", "endedAt", "result")}
+                                                for a in (b.get("attempts") or [])][:500]}
+            if books:
+                s["books"] = books
             if not 500 <= s["accountSize"] <= 1_000_000:
                 raise ValueError("account size must be between 500 and 1,000,000")
             _write(d / "settings.json", s)
@@ -194,6 +206,17 @@ def export_csv(data: Path) -> str:
 
 def _day(iso: str) -> str:
     return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(LAGOS).date().isoformat()
+
+
+def book_view(st: dict, book: str) -> dict:
+    """The trades and attempt settings of one record ("free" or "disciplined")."""
+    settings = dict(st.get("settings") or {})
+    b = (settings.get("books") or {}).get(book)
+    if b:
+        settings.update(b)
+    elif book != "free":
+        settings.update({"attemptStartedAt": "1970", "attempts": []})
+    return {"settings": settings, "trades": [t for t in st["trades"] if (t.get("book") or "free") == book]}
 
 
 def challenge(st: dict) -> dict:
@@ -269,11 +292,28 @@ def summary(st: dict) -> dict:
 
 
 def report(data: Path) -> str:
-    st = state(data)
-    s = summary(st)
-    c = s["challenge"]
+    full = state(data)
     f = lambda x: "-" if x is None else f"{x:+.2f}R"
-    out = ["=== DEMO JOURNAL REVIEW ===",
+    pc = lambda x: "-" if x is None else f"{x}%"
+    sums = {b: summary(book_view(full, b)) for b in BOOKS}
+    out = ["=== DEMO JOURNAL REVIEW: TWO RECORDS ===",
+           "FREE = trading the way he used to (rules still checked and recorded); DISCIPLINED = every rule.",
+           f"{'':24}{'free':>14}{'disciplined':>14}"]
+    for label, fn in [("closed trades (gold/ETH)", lambda s: str(s["closed"])),
+                      ("rules kept", lambda s: pc(s["rules_kept_pct"])),
+                      ("win rate", lambda s: pc(s["win_rate_pct"])),
+                      ("average R", lambda s: f(s["avg_R"])),
+                      ("total P&L", lambda s: f"${s['total_pnl']:+,.2f}"),
+                      ("volatility practice", lambda s: str(s["practice_volatility"]["n"]))]:
+        out.append(f"{label:24}{fn(sums['free']):>14}{fn(sums['disciplined']):>14}")
+    for book in ("disciplined", "free"):
+        out += ["", report_book(data, book_view(full, book), sums[book], f, book.upper())]
+    return "\n".join(out)
+
+
+def report_book(data: Path, st: dict, s: dict, f, title: str) -> str:
+    c = s["challenge"]
+    out = [f"--- {title} RECORD ---",
            f"attempt {c['attempt']}  phase {c['phase']}  {c['result'].upper()}{' (' + c['reason'] + ')' if c['reason'] else ''}"
            f"  balance ${c['balance']:,.2f} of ${c['account']:,.0f}  passes in a row: {c['passes_in_a_row']}/2",
            f"closed trades {s['closed']}  open {s['open']}  rules kept {s['rules_kept_pct']}%  win rate {s['win_rate_pct']}%"

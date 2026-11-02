@@ -45,6 +45,15 @@ Practice account $5,000 by default (set in the journal). Percentages scale with 
   `dresearch journal` output to you instead of giving server access.
 - Never ask for passwords, private keys, API tokens or MT5 login details. He runs commands and pastes the output.
 
+## Two records
+The journal keeps two records, chosen before each trade and never moved afterwards:
+- **Free trading:** how he used to trade. Rules are still checked and every break is recorded.
+- **Disciplined:** every rule, every time. Only this record counts toward the "pass twice" bar.
+Trades logged before the records existed count as free. Each record has its own challenge attempts. In reviews,
+compare the two (risk per trade, average and worst loss in $ and R, rules kept, early closes); the point is to show
+him, from his own data, what discipline changes. Watch for cherry-picking (putting losing ideas in "free" after the
+fact is impossible in the app, but deciding the record by how confident he feels is a habit worth naming).
+
 ## The weekly review (Sundays; he says "review my log")
 1. Get the numbers (`dresearch journal` output or the CSV). Look at screenshots if he shares them.
 2. Report, in a few lines: attempt and phase, rules kept % (target 95%+), average R, and what changed since last week.

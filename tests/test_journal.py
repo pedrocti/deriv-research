@@ -106,3 +106,19 @@ def test_volatility_practice_stays_out_of_challenge_and_specs_come_from_snapshot
     (tmp_path / "reports" / "mt5_snapshot_20261029.json").write_text(json.dumps({"symbols": {
         "1HZ75V": {"specs": {"trade_contract_size": 1.0, "volume_min": 0.05, "volume_step": 0.01}}}}))
     assert J.state(tmp_path)["specs"] == {"VOL75_1S": {"contract": 1.0, "min": 0.05, "step": 0.01}}
+
+
+def test_two_records_are_separate_and_compared(tmp_path):
+    J.apply(tmp_path, "trade", {**{k: v for k, v in trade("2026-11-02", -60, followed=False).items() if k != "id"}})
+    J.apply(tmp_path, "trade", {**{k: v for k, v in trade("2026-11-03", 50).items() if k != "id"}, "book": "disciplined"})
+    J.apply(tmp_path, "settings", {"accountSize": 5000, "books": {"disciplined": {"attemptStartedAt": "1970", "attempts": [
+        {"startedAt": "a", "endedAt": "b", "result": "passed"}]}, "bogus": {}}})
+    st = J.state(tmp_path)
+    assert set(st["settings"]["books"]) == {"disciplined"}
+    assert J.challenge(J.book_view(st, "free"))["balance"] == 4940
+    d = J.challenge(J.book_view(st, "disciplined"))
+    assert d["balance"] == 5050 and d["passes_in_a_row"] == 1
+    r = J.report(tmp_path)
+    assert "TWO RECORDS" in r and "--- DISCIPLINED RECORD ---" in r and "--- FREE RECORD ---" in r
+    with pytest.raises(ValueError):
+        J.apply(tmp_path, "trade", {"book": "yolo"})
